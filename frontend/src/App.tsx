@@ -1,12 +1,13 @@
-import HomePage from './Home/Home'
 import './App.css'
+import { AuthProvider } from './context/auth'
+import Router from './router'
 
 function App() {
 
   return (
-    <>
-     <HomePage/>
-    </>
+    <AuthProvider>
+      <Router />
+    </AuthProvider>
   )
 }
 

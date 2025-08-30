@@ -592,3 +592,134 @@ export const getUserProperties = async (req, res) => {
     );
   }
 };
+
+// Add media URLs to a property (OWNER/AGENT/Admins)
+export const addPropertyMedia = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { media } = req.body; // expect array of URLs
+
+    if (!Array.isArray(media) || media.length === 0) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('media must be a non-empty array of URLs', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    const property = await prisma.property.findUnique({ where: { id: Number(id) } });
+    if (!property) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json(
+        errorResponse(ERROR_MESSAGES.NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+      );
+    }
+
+    // Ownership/access check
+    const isPrivileged = req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN';
+    const isOwnerOrAgent = property.ownerId === req.user.id || property.agentId === req.user.id;
+    if (!isPrivileged && !isOwnerOrAgent) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse(ERROR_MESSAGES.FORBIDDEN, HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
+    // Basic URL validation and dedupe
+    const urlRegex = /^(https?:\/\/).+/i;
+    const newUrls = media
+      .filter((u) => typeof u === 'string' && urlRegex.test(u))
+      .map((u) => u.trim());
+
+    if (newUrls.length === 0) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('No valid media URLs provided', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    const updated = await prisma.property.update({
+      where: { id: Number(id) },
+      data: {
+        media: Array.from(new Set([...(property.media || []), ...newUrls])),
+        updatedAt: new Date()
+      }
+    });
+
+    res.json(successResponse(updated, 'Media added to property successfully'));
+  } catch (error) {
+    console.error('Add property media error:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to add media to property', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Remove media URLs from a property
+export const removePropertyMedia = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { media } = req.body; // expect array of URLs to remove
+
+    if (!Array.isArray(media) || media.length === 0) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('media must be a non-empty array of URLs', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    const property = await prisma.property.findUnique({ where: { id: Number(id) } });
+    if (!property) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json(
+        errorResponse(ERROR_MESSAGES.NOT_FOUND, HTTP_STATUS.NOT_FOUND)
+      );
+    }
+
+    // Ownership/access check
+    const isPrivileged = req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN';
+    const isOwnerOrAgent = property.ownerId === req.user.id || property.agentId === req.user.id;
+    if (!isPrivileged && !isOwnerOrAgent) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse(ERROR_MESSAGES.FORBIDDEN, HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
+    const toRemove = new Set(media.map((u) => String(u).trim()));
+    const remaining = (property.media || []).filter((u) => !toRemove.has(String(u).trim()));
+
+    const updated = await prisma.property.update({
+      where: { id: Number(id) },
+      data: { media: remaining, updatedAt: new Date() }
+    });
+
+    res.json(successResponse(updated, 'Media removed from property successfully'));
+  } catch (error) {
+    console.error('Remove property media error:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to remove media from property', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Generate S3 presigned URL for direct client upload
+export const getPresignedUploadUrl = async (req, res) => {
+  try {
+    const { fileType, fileName, folder = 'properties' } = req.body;
+
+    if (!fileType || !fileName) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('fileType and fileName are required', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    // Simple type allowlist (image/video)
+    const allowed = ['image/', 'video/'];
+    if (!allowed.some(prefix => String(fileType).startsWith(prefix))) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('Only image/* or video/* uploads are allowed', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    const { presignedUrl, key, url } = await S3Service.generatePresignedUrl(fileType, fileName, folder);
+    return res.json(successResponse({ presignedUrl, key, url }, 'Presigned URL generated'));
+  } catch (error) {
+    console.error('Generate presigned URL error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to generate presigned URL', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};

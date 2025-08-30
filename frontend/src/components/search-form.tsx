@@ -89,7 +89,7 @@ export default function SearchForm() {
   }
 
   return (
-    <div className="bg-white rounded-full p-4 md:p-5 shadow-2xl flex flex-row items-center gap-0 w-full max-w-7xl mx-auto relative z-20 backdrop-blur-sm bg-white/95 min-h-[96px] md:min-h-[104px] md:scale-[1.05]">
+    <div className=" rounded-full p-4 md:p-5 shadow-2xl flex flex-row items-center gap-0 w-full max-w-7xl mx-auto relative z-20 backdrop-blur-sm bg-white/95 min-h-[96px] md:min-h-[104px] md:scale-[1.05]">
       {/* Location Search */}
       <Popover open={showLocationDropdown} onOpenChange={setShowLocationDropdown}>
         <PopoverTrigger>

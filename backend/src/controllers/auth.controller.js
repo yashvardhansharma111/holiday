@@ -14,6 +14,13 @@ import {
 export const signup = async (req, res) => {
   try {
     const data = signupSchema.parse(req.body);
+    // Disallow admin or super admin signup via public route
+    if (data.role === 'ADMIN' || data.role === 'SUPER_ADMIN') {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('Admin signup is not allowed. Contact super admin.', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+    const allowedRoles = ['AGENT', 'OWNER', 'USER'];
     
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({ 
@@ -36,7 +43,7 @@ export const signup = async (req, res) => {
         name: data.name,
         email: data.email.toLowerCase(),
         passwordHash,
-        role: data.role,
+        role: allowedRoles.includes(data.role) ? data.role : 'USER',
         phone: data.phone,
         avatar: data.avatar
       },

@@ -14,6 +14,13 @@ router.post('/', requireAuth, requireRole('AGENT', 'OWNER'), propertyController.
 router.put('/:id', requireAuth, validateResourceOwnership('property'), propertyController.updateProperty);
 router.delete('/:id', requireAuth, validateResourceOwnership('property'), propertyController.deleteProperty);
 
+// Media management for a property
+router.post('/:id/media', requireAuth, propertyController.addPropertyMedia);
+router.delete('/:id/media', requireAuth, propertyController.removePropertyMedia);
+
+// Presigned URL for direct uploads
+router.post('/media/presign', requireAuth, propertyController.getPresignedUploadUrl);
+
 // User's properties
 router.get('/user/list', requireAuth, propertyController.getUserProperties);
 

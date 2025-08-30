@@ -3,25 +3,17 @@ import FeaturedProperties from "../components/featured-properties"
 import WhyChooseUs from "../components/why-choose-us"
 import Destinations from "../components/destinations"
 import Footer from "../components/footer"
+import Navbar from "../components/Navbar"
 
 export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
       <div className="relative overflow-hidden min-h-screen bg-gradient-to-br from-purple-600 via-purple-500 to-pink-400">
-        {/* Header */}
-        <header className="flex items-center justify-between p-6 relative z-10">
-          <div className="text-white">
-            <h1 className="text-2xl font-bold">Book </h1>
-            <h2 className="text-xl font-bold">Holdiday Rentals</h2>
-          </div>
-          <div className="flex items-center gap-4 text-white">
-            <span className="hidden md:inline">Host with us</span>
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </div>
-        </header>
+        {/* Navbar */}
+        <div className="relative z-10">
+          <Navbar />
+        </div>
 
         {/* Main Content */}
         <main className="relative z-10 px-6 pt-8 pb-20">

@@ -15,7 +15,7 @@ export class SubscriptionService {
   }
 
   // Create a new subscription for a user
-  static async createSubscription(userId, planId) {
+  static async createSubscription(userId, planId, paid = false) {
     try {
       const plan = await prisma.subscriptionPlan.findUnique({
         where: { id: planId }
@@ -44,6 +44,7 @@ export class SubscriptionService {
           price: plan.price,
           features: plan.features,
           isActive: true,
+          paid,
           ownerId: userId,
           planId: plan.id,
           maxProperties: plan.maxProperties,
@@ -62,8 +63,9 @@ export class SubscriptionService {
     try {
       const subscription = await prisma.subscription.findFirst({
         where: { 
-          ownerId: userId, 
+          ownerId: userId,
           isActive: true,
+          paid: true,
           expiresAt: { gt: new Date() }
         }
       });
@@ -110,6 +112,22 @@ export class SubscriptionService {
       return subscription;
     } catch (error) {
       throw new Error(`Failed to update subscription status: ${error.message}`);
+    }
+  }
+
+  // Update subscription paid flag
+  static async updateSubscriptionPaidStatus(subscriptionId, paid) {
+    try {
+      const subscription = await prisma.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          paid,
+          updatedAt: new Date()
+        }
+      });
+      return subscription;
+    } catch (error) {
+      throw new Error(`Failed to update subscription payment status: ${error.message}`);
     }
   }
 
@@ -196,7 +214,7 @@ export class SubscriptionService {
   }
 
   // Upgrade/downgrade subscription
-  static async changeSubscriptionPlan(userId, newPlanId) {
+  static async changeSubscriptionPlan(userId, newPlanId, paid = false) {
     try {
       const newPlan = await prisma.subscriptionPlan.findUnique({
         where: { id: newPlanId }
@@ -219,7 +237,7 @@ export class SubscriptionService {
       }
 
       // Create new subscription
-      const newSubscription = await this.createSubscription(userId, newPlanId);
+      const newSubscription = await this.createSubscription(userId, newPlanId, paid);
 
       return newSubscription;
     } catch (error) {
@@ -228,4 +246,4 @@ export class SubscriptionService {
   }
 }
 
-export default SubscriptionService; 
+export default SubscriptionService;

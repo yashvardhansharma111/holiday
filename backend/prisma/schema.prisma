@@ -96,6 +96,7 @@ model Subscription {
   features            Json               // JSONB (document-like)
   isActive            Boolean            @default(true)
   status              SubscriptionStatus @default(ACTIVE)
+  paid                Boolean            @default(false)
   maxProperties       Int
   expiresAt           DateTime
   cancelledAt         DateTime?

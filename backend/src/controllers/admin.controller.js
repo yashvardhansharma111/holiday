@@ -11,6 +11,9 @@ import {
   updateSubscriptionPlanSchema 
 } from '../schemas/index.js';
 import { paginateResults, buildSearchQuery, buildFilterQuery } from '../utils/responses.js';
+import bcrypt from 'bcryptjs';
+import { createAdminUserSchema } from '../schemas/admin.schemas.js';
+import SubscriptionService from '../services/subscription.service.js';
 
 // Get all users with pagination and filtering
 export const getAllUsers = async (req, res) => {
@@ -19,6 +22,7 @@ export const getAllUsers = async (req, res) => {
     
     // Build where clause
     const where = {};
+    
     
     if (role) {
       where.role = role;
@@ -81,6 +85,62 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
+// SUPER_ADMIN: Create an Admin user
+export const createAdminUser = async (req, res) => {
+  try {
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse(ERROR_MESSAGES.FORBIDDEN, HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
+    const data = createAdminUserSchema.parse(req.body);
+
+    // Check if email already exists
+    const existing = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
+    if (existing) {
+      return res.status(HTTP_STATUS.CONFLICT).json(
+        errorResponse(ERROR_MESSAGES.EMAIL_EXISTS || 'Email already exists', HTTP_STATUS.CONFLICT)
+      );
+    }
+
+    const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS) || 12;
+    const passwordHash = await bcrypt.hash(data.password, saltRounds);
+
+    const admin = await prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email.toLowerCase(),
+        passwordHash,
+        role: 'ADMIN',
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true
+      }
+    });
+
+    res.status(HTTP_STATUS.CREATED).json(
+      successResponse(admin, 'Admin user created successfully', HTTP_STATUS.CREATED)
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse(ERROR_MESSAGES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST, error.errors)
+      );
+    }
+    console.error('Create admin user error:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to create admin user', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
 // Get user by ID with detailed information
 export const getUserById = async (req, res) => {
   try {
@@ -96,7 +156,6 @@ export const getUserById = async (req, res) => {
         phone: true,
         avatar: true,
         isActive: true,
-        stripeCustomerId: true,
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true,
@@ -653,6 +712,79 @@ export const deleteSubscriptionPlan = async (req, res) => {
     console.error('Delete subscription plan error:', error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
       errorResponse('Failed to delete subscription plan', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Admin: Grant a subscription to a user (manual, no gateway)
+export const grantUserSubscription = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { planId, paid = false } = req.body;
+
+    if (!planId) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('planId is required', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    const subscription = await SubscriptionService.createSubscription(Number(userId), Number(planId), Boolean(paid));
+    res.status(HTTP_STATUS.CREATED).json(
+      successResponse(subscription, 'Subscription granted', HTTP_STATUS.CREATED)
+    );
+  } catch (error) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      errorResponse(error.message || 'Failed to grant subscription', HTTP_STATUS.BAD_REQUEST)
+    );
+  }
+};
+
+// Admin: Cancel (deactivate) a subscription
+export const cancelUserSubscription = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const updated = await SubscriptionService.cancelSubscription(Number(subscriptionId));
+    res.json(successResponse(updated, 'Subscription cancelled'));
+  } catch (error) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      errorResponse(error.message || 'Failed to cancel subscription', HTTP_STATUS.BAD_REQUEST)
+    );
+  }
+};
+
+// Admin: Set subscription paid flag
+export const setSubscriptionPaidStatus = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const { paid } = req.body;
+    if (typeof paid !== 'boolean') {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('paid must be a boolean', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+    const updated = await SubscriptionService.updateSubscriptionPaidStatus(Number(subscriptionId), paid);
+    res.json(successResponse(updated, 'Subscription payment status updated'));
+  } catch (error) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      errorResponse(error.message || 'Failed to update subscription payment status', HTTP_STATUS.BAD_REQUEST)
+    );
+  }
+};
+
+// Admin: Get a user's active subscription details
+export const getUserSubscription = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const subscription = await SubscriptionService.getUserSubscription(Number(userId));
+    if (!subscription) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json(
+        errorResponse('No active subscription found', HTTP_STATUS.NOT_FOUND)
+      );
+    }
+    res.json(successResponse(subscription, 'User subscription retrieved'));
+  } catch (error) {
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to get user subscription', HTTP_STATUS.INTERNAL_SERVER_ERROR)
     );
   }
 };

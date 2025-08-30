@@ -25,4 +25,10 @@ export const analyticsFilterSchema = z.object({
 
 export const deleteUserSchema = z.object({
   reason: z.string().min(5, 'Deletion reason must be at least 5 characters').max(500, 'Deletion reason must be less than 500 characters')
-}); 
+});
+
+export const createAdminUserSchema = z.object({
+  name: z.string().min(2).max(50),
+  email: z.string().email(),
+  password: z.string().min(8)
+});
