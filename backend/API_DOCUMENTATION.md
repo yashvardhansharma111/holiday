@@ -99,16 +99,12 @@ Authorization: Bearer <your-jwt-token>
 ### 4. OWNER (Property Owner)
 **Individuals who own properties and want to list them**
 
-#### **Subscription Management**
-- `GET /api/subscriptions/plans` - View available subscription plans
-- `POST /api/subscriptions` - Purchase subscription plan
-- `GET /api/subscriptions/user` - View current subscription
-- `PUT /api/subscriptions/:id` - Upgrade/downgrade subscription
-- `DELETE /api/subscriptions/:id` - Cancel subscription
-- `GET /api/subscriptions/usage` - Check property limits
+#### **Access Policy**
+- Access to owner features is granted via the `ownerPaid` flag on the user record (set by an Admin/Super Admin).
+- No subscription is required; previous subscription checks have been removed.
 
 #### **Property Management**
-- `POST /api/properties` - List new properties (requires active subscription)
+- `POST /api/properties` - List new properties (requires `ownerPaid=true`)
 - `PUT /api/properties/:id` - Update property details
 - `DELETE /api/properties/:id` - Remove properties
 - `GET /api/properties/user` - View owned properties
@@ -124,8 +120,7 @@ Authorization: Bearer <your-jwt-token>
 - Access to property rating analytics
 
 #### **Limitations**
-- Cannot list properties without active subscription
-- Property count limited by subscription plan
+- Cannot access owner features unless `ownerPaid=true`
 - Properties require admin approval before going live
 
 ---
@@ -192,13 +187,13 @@ PUT    /api/properties/:id/approve - Admin approve property
 
 ### Bookings
 ```
-POST   /api/bookings             - Create booking
-GET    /api/bookings             - List user's bookings
-GET    /api/bookings/:id         - Get booking details
-PUT    /api/bookings/:id         - Update booking
-DELETE /api/bookings/:id         - Cancel booking
-GET    /api/bookings/property/:propertyId - Get property bookings
-PUT    /api/bookings/:id/confirm - Confirm booking
+POST   /api/bookings                         - Create booking (USER)
+GET    /api/bookings/user/list               - List current user's bookings (USER)
+GET    /api/bookings/:id                     - Get booking details (USER/OWNER/AGENT/ADMIN)
+PUT    /api/bookings/:id                     - Update booking (USER/OWNER/AGENT/ADMIN)
+DELETE /api/bookings/:id                     - Cancel booking (USER/OWNER/AGENT/ADMIN)
+GET    /api/bookings/property/:propertyId    - Get bookings for a property (OWNER/AGENT)
+PUT    /api/bookings/:id/confirm             - Confirm booking (OWNER/AGENT)
 ```
 
 ### Reviews
@@ -223,14 +218,11 @@ DELETE /api/subscriptions/:id    - Cancel subscription
 GET    /api/subscriptions/usage  - Get subscription usage
 ```
 
-### Media Management
+### Media Management (Property Images)
 ```
-POST   /api/media/generate-presigned-url - Generate upload URL
-POST   /api/media/upload         - Upload single file
-POST   /api/media/upload-multiple - Upload multiple files
-DELETE /api/media/delete         - Delete file
-GET    /api/media/view-url       - Generate view URL
-GET    /api/media/info           - Get file information
+POST   /api/properties/media/presign        - Generate presigned URL for S3 upload
+POST   /api/properties/:id/media            - Add media URLs to a property (after uploading to S3)
+DELETE /api/properties/:id/media            - Remove media URLs from a property (best-effort S3 delete)
 ```
 
 ### Admin Functions
@@ -351,14 +343,12 @@ All API endpoints return standardized error responses:
 ## File Upload Guidelines
 
 ### Supported Formats
-- **Images**: JPEG, PNG, WebP
-- **Videos**: MP4, WebM, OGG
-- **Max Size**: 10MB per file
+- Images: JPEG, PNG, WebP (max ~10MB per file)
 
-### Upload Process
-1. Generate presigned URL: `POST /api/media/generate-presigned-url`
-2. Upload file directly to S3 using the URL
-3. Save file metadata to your property/booking
+### Upload Process (Property Images)
+1. Generate presigned URL: `POST /api/properties/media/presign`
+2. Upload file directly to S3 using the presigned URL
+3. Save file URL to the property via `POST /api/properties/:id/media`
 
 ## Testing the API
 

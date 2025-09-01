@@ -22,8 +22,8 @@ export const getAllUsers = async (req, res) => {
     
     // Build where clause
     const where = {};
-    
-    
+
+
     if (role) {
       where.role = role;
     }
@@ -43,7 +43,7 @@ export const getAllUsers = async (req, res) => {
     const total = await prisma.user.count({ where });
     
     // Get users with pagination
-    const users = await prisma.user.findMany({
+    const usersRaw = await prisma.user.findMany({
       where,
       select: {
         id: true,
@@ -53,6 +53,7 @@ export const getAllUsers = async (req, res) => {
         phone: true,
         avatar: true,
         isActive: true,
+        ownerPaid: true,
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true,
@@ -68,6 +69,14 @@ export const getAllUsers = async (req, res) => {
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit)
     });
+    // Remove ownerPaid field for non-OWNER roles
+    const users = usersRaw.map(u => {
+      if (u.role !== 'OWNER') {
+        const { ownerPaid, ...rest } = u
+        return rest
+      }
+      return u
+    })
     
     const paginatedResults = paginateResults(
       users, 
@@ -81,6 +90,61 @@ export const getAllUsers = async (req, res) => {
     console.error('Get all users error:', error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
       errorResponse('Failed to retrieve users', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// SUPER_ADMIN: Create an Agent user
+export const createAgentUser = async (req, res) => {
+  try {
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse(ERROR_MESSAGES.FORBIDDEN, HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
+    const data = createAdminUserSchema.parse(req.body);
+
+    const existing = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
+    if (existing) {
+      return res.status(HTTP_STATUS.CONFLICT).json(
+        errorResponse(ERROR_MESSAGES.EMAIL_EXISTS || 'Email already exists', HTTP_STATUS.CONFLICT)
+      );
+    }
+
+    const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS) || 12;
+    const passwordHash = await bcrypt.hash(data.password, saltRounds);
+
+    const agent = await prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email.toLowerCase(),
+        passwordHash,
+        role: 'AGENT',
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true
+      }
+    });
+
+    return res.status(HTTP_STATUS.CREATED).json(
+      successResponse(agent, 'Agent user created successfully', HTTP_STATUS.CREATED)
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse(ERROR_MESSAGES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST, error.errors)
+      );
+    }
+    console.error('Create agent user error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to create agent user', HTTP_STATUS.INTERNAL_SERVER_ERROR)
     );
   }
 };
@@ -146,7 +210,7 @@ export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const user = await prisma.user.findUnique({
+    const userRaw = await prisma.user.findUnique({
       where: { id: Number(id) },
       select: {
         id: true,
@@ -156,6 +220,7 @@ export const getUserById = async (req, res) => {
         phone: true,
         avatar: true,
         isActive: true,
+        ownerPaid: true,
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true,
@@ -194,6 +259,7 @@ export const getUserById = async (req, res) => {
         }
       }
     });
+    const user = userRaw?.role !== 'OWNER' && userRaw ? (() => { const { ownerPaid, ...rest } = userRaw; return rest })() : userRaw;
     
     if (!user) {
       return res.status(HTTP_STATUS.NOT_FOUND).json(
@@ -226,7 +292,14 @@ export const updateUser = async (req, res) => {
         errorResponse('User not found', HTTP_STATUS.NOT_FOUND)
       );
     }
-    
+
+    // Only SUPER_ADMIN can modify a SUPER_ADMIN account
+    if (existingUser.role === 'SUPER_ADMIN' && req.user.role !== 'SUPER_ADMIN') {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse('Only super admins can modify super admin users', HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
     // Prevent role escalation (non-super admins can't create super admins)
     if (req.user.role !== 'SUPER_ADMIN' && data.role === 'SUPER_ADMIN') {
       return res.status(HTTP_STATUS.FORBIDDEN).json(
@@ -241,6 +314,20 @@ export const updateUser = async (req, res) => {
       );
     }
     
+    // Enforce that only OWNER users can have ownerPaid updated
+    if (Object.prototype.hasOwnProperty.call(data, 'ownerPaid') && existingUser.role !== 'OWNER') {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('ownerPaid can only be set for OWNER users', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    // Only SUPER_ADMIN can update ownerPaid flag
+    if (Object.prototype.hasOwnProperty.call(data, 'ownerPaid') && req.user.role !== 'SUPER_ADMIN') {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse('Only super admins can update ownerPaid status', HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
     // Update user
     const updatedUser = await prisma.user.update({
       where: { id: Number(id) },
@@ -256,11 +343,14 @@ export const updateUser = async (req, res) => {
         phone: true,
         avatar: true,
         isActive: true,
+        ownerPaid: true,
         updatedAt: true
       }
     });
+    // Hide ownerPaid if not OWNER
+    const sanitized = updatedUser.role !== 'OWNER' ? (() => { const { ownerPaid, ...rest } = updatedUser; return rest })() : updatedUser;
     
-    res.json(successResponse(updatedUser, 'User updated successfully'));
+    res.json(successResponse(sanitized, 'User updated successfully'));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json(
@@ -760,6 +850,12 @@ export const setSubscriptionPaidStatus = async (req, res) => {
     if (typeof paid !== 'boolean') {
       return res.status(HTTP_STATUS.BAD_REQUEST).json(
         errorResponse('paid must be a boolean', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+    // Only SUPER_ADMIN can toggle subscription paid status
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse(ERROR_MESSAGES.FORBIDDEN, HTTP_STATUS.FORBIDDEN)
       );
     }
     const updated = await SubscriptionService.updateSubscriptionPaidStatus(Number(subscriptionId), paid);

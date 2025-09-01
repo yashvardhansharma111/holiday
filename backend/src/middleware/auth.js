@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import prisma from '../db.js';
 import { errorResponse, ERROR_MESSAGES, HTTP_STATUS } from '../utils/responses.js';
 
 export const requireAuth = (req, res, next) => {

@@ -12,6 +12,7 @@ router.put('/:id', requireAuth, validateResourceOwnership('booking'), bookingCon
 router.delete('/:id', requireAuth, validateResourceOwnership('booking'), bookingController.cancelBooking);
 
 // Property owner/agent routes
+router.get('/owner/aggregated', requireAuth, requireRole('OWNER', 'AGENT'), bookingController.getOwnerAggregatedBookings);
 router.get('/property/:propertyId', requireAuth, requireRole('OWNER', 'AGENT'), bookingController.getPropertyBookings);
 router.put('/:id/confirm', requireAuth, requireRole('OWNER', 'AGENT'), bookingController.confirmBooking);
 

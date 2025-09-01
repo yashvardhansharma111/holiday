@@ -27,7 +27,7 @@ async function request(path: string, options: RequestInit = {}) {
 }
 
 export const AuthAPI = {
-  signup: (body: { name: string; email: string; password: string; role?: 'USER' | 'OWNER' | 'AGENT' }) =>
+  signup: (body: { name: string; email: string; password: string; role?: 'USER' | 'OWNER' }) =>
     request('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { email: string; password: string }) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
@@ -36,12 +36,23 @@ export const AuthAPI = {
 
 export const AdminAPI = {
   // Users
-  listUsers: () => request('/admin/users', { method: 'GET' }),
+  listUsers: (params?: { search?: string; role?: string; isActive?: boolean; page?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.search) q.set('search', params.search)
+    if (params?.role) q.set('role', params.role)
+    if (typeof params?.isActive === 'boolean') q.set('isActive', String(params.isActive))
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return request(`/admin/users${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
   getUser: (id: number) => request(`/admin/users/${id}`, { method: 'GET' }),
   updateUser: (id: number, body: any) => request(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteUser: (id: number) => request(`/admin/users/${id}`, { method: 'DELETE' }),
   createAdminUser: (body: { name: string; email: string; password: string }) =>
     request('/admin/users/admin', { method: 'POST', body: JSON.stringify(body) }),
+  createAgentUser: (body: { name: string; email: string; password: string }) =>
+    request('/admin/users/agent', { method: 'POST', body: JSON.stringify(body) }),
 
   // Properties moderation
   approvalQueue: () => request('/admin/properties/queue', { method: 'GET' }),
@@ -78,6 +89,29 @@ export const PropertiesAPI = {
   removeMedia: (id: number, urls: string[]) => request(`/properties/${id}/media`, { method: 'DELETE', body: JSON.stringify({ media: urls }) }),
 }
 
+// Public properties browsing/search
+export const PublicPropertiesAPI = {
+  list: (params?: { search?: string; city?: string; country?: string; minPrice?: number; maxPrice?: number; guests?: number; bedrooms?: number; bathrooms?: number; sort?: string; page?: number; limit?: number; minRating?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.search) q.set('search', params.search)
+    if (params?.city) q.set('city', params.city)
+    if (params?.country) q.set('country', params.country)
+    if (params?.minPrice != null) q.set('minPrice', String(params.minPrice))
+    if (params?.maxPrice != null) q.set('maxPrice', String(params.maxPrice))
+    if (params?.guests != null) q.set('guests', String(params.guests))
+    if (params?.bedrooms != null) q.set('bedrooms', String(params.bedrooms))
+    if (params?.bathrooms != null) q.set('bathrooms', String(params.bathrooms))
+    if (params?.minRating != null) q.set('minRating', String(params.minRating))
+    if (params?.sort) q.set('sort', params.sort)
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return request(`/properties${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+  get: (id: number) => request(`/properties/${id}`, { method: 'GET' }),
+  popularCities: () => request('/properties/cities', { method: 'GET' }),
+}
+
 // Media management (presigned upload for properties)
 export const MediaAPI = {
   generatePresigned: async (file: File, folder = 'properties') => {
@@ -85,8 +119,73 @@ export const MediaAPI = {
     return request('/properties/media/presign', { method: 'POST', body: JSON.stringify(body) }) as Promise<{ presignedUrl: string; key: string; url: string }>
   },
   uploadToPresigned: async (presignedUrl: string, file: File) => {
-    const res = await fetch(presignedUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+    const headers: Record<string, string> = { 'Content-Type': file.type }
+    const publicRead = String(import.meta.env.VITE_S3_PUBLIC_READ || 'false').toLowerCase() === 'true'
+    if (publicRead) headers['x-amz-acl'] = 'public-read'
+    const res = await fetch(presignedUrl, { method: 'PUT', headers, body: file })
     if (!res.ok) throw new Error(`S3 upload failed (${res.status})`)
     return true
+  },
+}
+
+// Bookings
+export const BookingsAPI = {
+  create: (body: { propertyId: number; startDate: string; endDate: string; guests: number; specialRequests?: string }) =>
+    request('/bookings', { method: 'POST', body: JSON.stringify(body) }),
+  myBookings: (params?: { page?: number; limit?: number; status?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    if (params?.status) q.set('status', params.status)
+    const qs = q.toString()
+    return request(`/bookings/user/list${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+  propertyBookings: (propertyId: number, params?: { page?: number; limit?: number; status?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    if (params?.status) q.set('status', params.status)
+    const qs = q.toString()
+    return request(`/bookings/property/${propertyId}${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+  ownerAggregated: (params?: { page?: number; limit?: number; status?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    if (params?.status) q.set('status', params.status)
+    const qs = q.toString()
+    return request(`/bookings/owner/aggregated${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+  confirm: (id: number) => request(`/bookings/${id}/confirm`, { method: 'PUT' }),
+  cancel: (id: number, reason?: string) => request(`/bookings/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
+}
+
+// Reviews
+export const ReviewsAPI = {
+  listForProperty: (
+    propertyId: number,
+    params?: { page?: number; limit?: number; rating?: number; verified?: boolean }
+  ) => {
+    const q = new URLSearchParams()
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    if (params?.rating != null) q.set('rating', String(params.rating))
+    if (params?.verified != null) q.set('verified', String(params.verified))
+    const qs = q.toString()
+    return request(`/reviews/property/${propertyId}${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+  add: (
+    propertyId: number,
+    body: { rating: number; comment?: string; bookingId?: number }
+  ) => request(`/reviews/property/${propertyId}`, { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: number, body: { rating?: number; comment?: string }) =>
+    request(`/reviews/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  remove: (id: number) => request(`/reviews/${id}`, { method: 'DELETE' }),
+  myReviews: (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return request(`/reviews/user/list${qs ? `?${qs}` : ''}`, { method: 'GET' })
   },
 }

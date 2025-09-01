@@ -152,6 +152,63 @@ export const createBooking = async (req, res) => {
   }
 };
 
+// Get aggregated bookings across all properties owned/managed by the user (OWNER/AGENT)
+export const getOwnerAggregatedBookings = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const userId = req.user.id;
+
+    // Build where clause: bookings for properties where current user is owner or agent
+    const where = {
+      OR: [
+        { property: { ownerId: userId } },
+        { property: { agentId: userId } }
+      ]
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    const total = await prisma.booking.count({ where });
+
+    const bookings = await prisma.booking.findMany({
+      where,
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, phone: true }
+        },
+        property: {
+          select: { id: true, title: true, location: true, ownerId: true, agentId: true }
+        },
+        payments: {
+          select: { id: true, amount: true, status: true, createdAt: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit)
+    });
+
+    const paginatedResults = {
+      bookings,
+      pagination: {
+        currentPage: Number(page),
+        totalPages: Math.ceil(total / Number(limit)),
+        totalItems: total,
+        itemsPerPage: Number(limit)
+      }
+    };
+
+    res.json(successResponse(paginatedResults, 'Owner aggregated bookings retrieved successfully'));
+  } catch (error) {
+    console.error('Get owner aggregated bookings error:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to retrieve owner aggregated bookings', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
 // Get user's bookings
 export const getUserBookings = async (req, res) => {
   try {

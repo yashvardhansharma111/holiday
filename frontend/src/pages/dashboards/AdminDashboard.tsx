@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/auth'
 import { AdminAPI } from '../../lib/api'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, PieChart, Pie, Cell, CartesianGrid } from 'recharts'
 
 type TabKey = 'users' | 'queue' | 'plans' | 'subscriptions' | 'analytics' | 'health'
 
@@ -65,11 +66,12 @@ function UsersTab() {
   const [error, setError] = useState<string | null>(null)
   const [users, setUsers] = useState<any[]>([])
   const [savingId, setSavingId] = useState<number | null>(null)
+  const [search, setSearch] = useState('')
 
   const load = async () => {
     setLoading(true); setError(null)
     try {
-      const resp = await AdminAPI.listUsers()
+      const resp = await AdminAPI.listUsers(search ? { search } : undefined)
       setUsers(Array.isArray(resp) ? resp : (resp?.data || []))
     } catch (e:any) {
       setError(e?.message || 'Failed to load users')
@@ -84,9 +86,18 @@ function UsersTab() {
     finally { setSavingId(null) }
   }
 
+  // Admins are not allowed to toggle ownerPaid; Super Admin only
+
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Users</h2>
+      <div className="mb-3 text-xs text-gray-600 bg-purple-50 border border-purple-200 rounded px-3 py-2">
+        <strong>Note:</strong> Admins cannot toggle Owner Paid or Subscription Paid. Only Super Admins can change paid statuses.
+      </div>
+      <div className="mb-3 flex gap-2 items-center">
+        <input className="border rounded px-3 py-2 text-sm" placeholder="Search by name or email" value={search} onChange={e=>setSearch(e.target.value)} />
+        <button onClick={load} className="text-sm px-3 py-2 border rounded">Search</button>
+      </div>
       {loading ? <p>Loading...</p> : error ? <p className="text-red-600">{error}</p> : (
         <div className="overflow-auto">
           <table className="w-full text-sm">
@@ -97,6 +108,7 @@ function UsersTab() {
                 <th className="py-2 pr-2">Email</th>
                 <th className="py-2 pr-2">Role</th>
                 <th className="py-2 pr-2">Active</th>
+                <th className="py-2 pr-2">Owner Paid</th>
                 <th className="py-2 pr-2">Actions</th>
               </tr>
             </thead>
@@ -125,6 +137,13 @@ function UsersTab() {
                     </label>
                   </td>
                   <td className="py-2 pr-2">
+                    {u.role === 'OWNER' ? (
+                      <span className={`px-2 py-0.5 rounded text-xs ${u.ownerPaid ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{u.ownerPaid ? 'PAID' : 'UNPAID'}</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-2 flex gap-2">
                     <button disabled={savingId === u.id} onClick={() => updateUser(u.id, { })} className="px-3 py-1 border rounded text-xs disabled:opacity-60">{savingId === u.id ? 'Saving...' : 'Refresh'}</button>
                   </td>
                 </tr>
@@ -225,15 +244,14 @@ function SubscriptionsTab() {
     try { await AdminAPI.cancelUserSubscription(Number(subscriptionId)); setMessage('Cancelled subscription') }
     catch (e:any) { alert(e?.message || 'Failed') }
   }
-  const setPaid = async (paid:boolean) => {
-    setMessage(null)
-    try { await AdminAPI.setSubscriptionPaidStatus(Number(subscriptionId), { paid }); setMessage('Updated paid status') }
-    catch (e:any) { alert(e?.message || 'Failed') }
-  }
+  // Admins cannot change paid status; Super Admin only
 
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Subscriptions</h2>
+      <div className="mb-3 text-xs text-gray-600 bg-purple-50 border border-purple-200 rounded px-3 py-2">
+        <strong>Note:</strong> Admins can grant/cancel subscriptions but cannot mark subscriptions paid/unpaid. Only Super Admins can change paid status.
+      </div>
       <div className="grid md:grid-cols-2 gap-6">
         <div className="border rounded p-4 space-y-2">
           <h3 className="font-medium">Grant Subscription</h3>
@@ -246,8 +264,6 @@ function SubscriptionsTab() {
           <input className="w-full border rounded px-3 py-2" placeholder="Subscription ID" value={subscriptionId as any} onChange={e=>setSubscriptionId(e.target.value as any)} />
           <div className="flex gap-2">
             <button onClick={cancel} className="px-3 py-2 rounded border">Cancel</button>
-            <button onClick={() => setPaid(true)} className="px-3 py-2 rounded border">Mark Paid</button>
-            <button onClick={() => setPaid(false)} className="px-3 py-2 rounded border">Mark Unpaid</button>
           </div>
         </div>
       </div>
@@ -266,12 +282,85 @@ function AnalyticsTab() {
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+  const roleData = (data?.users?.byRole || []).map((r:any)=>({ role: r.role, count: r._count?.role || r._count || 0 }))
+  const propertyData = [
+    { name: 'Live', value: data?.properties?.live || 0 },
+    { name: 'Pending', value: data?.properties?.pending || 0 },
+  ]
+  const bookingData = [
+    { name: 'Total', value: data?.bookings?.total || 0 },
+    { name: 'Confirmed', value: data?.bookings?.confirmed || 0 },
+    { name: 'Pending', value: data?.bookings?.pending || 0 },
+  ]
+  const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#06b6d4']
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Platform Analytics</h2>
-      <button onClick={load} className="mb-3 text-sm px-3 py-1 border rounded">Refresh</button>
+      <div className="grid md:grid-cols-4 gap-4 mb-4">
+        <div className="border rounded p-3 bg-white">
+          <div className="text-xs text-gray-500">Total Users</div>
+          <div className="text-2xl font-semibold">{data?.users?.total ?? '—'}</div>
+        </div>
+        <div className="border rounded p-3 bg-white">
+          <div className="text-xs text-gray-500">New Users</div>
+          <div className="text-2xl font-semibold">{data?.users?.new ?? '—'}</div>
+        </div>
+        <div className="border rounded p-3 bg-white">
+          <div className="text-xs text-gray-500">Revenue (Total)</div>
+          <div className="text-2xl font-semibold">${data?.revenue?.total?.toLocaleString?.() ?? '0'}</div>
+        </div>
+        <div className="border rounded p-3 bg-white">
+          <div className="text-xs text-gray-500">Revenue (Period)</div>
+          <div className="text-2xl font-semibold">${data?.revenue?.period?.toLocaleString?.() ?? '0'}</div>
+        </div>
+      </div>
+      <button onClick={load} className="mb-4 text-sm px-3 py-1 border rounded">Refresh</button>
       {loading ? <p>Loading...</p> : error ? <p className="text-red-600">{error}</p> : (
-        <pre className="text-xs bg-gray-50 p-3 rounded overflow-auto max-h-[420px]">{JSON.stringify(data, null, 2)}</pre>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="border rounded p-4 bg-white">
+            <div className="font-medium mb-2">Users by Role</div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={roleData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="role" />
+                  <YAxis allowDecimals={false} />
+                  <ReTooltip />
+                  <Bar dataKey="count" fill="#6366f1" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="border rounded p-4 bg-white">
+            <div className="font-medium mb-2">Properties Status</div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={propertyData} dataKey="value" nameKey="name" outerRadius={90} label>
+                    {propertyData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <ReTooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="border rounded p-4 bg-white md:col-span-2">
+            <div className="font-medium mb-2">Bookings Overview</div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bookingData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <ReTooltip />
+                  <Bar dataKey="value" fill="#06b6d4" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

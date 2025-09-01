@@ -9,6 +9,7 @@ type User = {
   role: Role
   phone?: string | null
   avatar?: string | null
+  ownerPaid?: boolean
 } | null
 
 type AuthContextType = {

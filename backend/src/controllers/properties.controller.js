@@ -2,7 +2,6 @@ import { z } from 'zod';
 import prisma from '../db.js';
 import { successResponse, errorResponse, ERROR_MESSAGES, HTTP_STATUS } from '../utils/responses.js';
 import { S3Service } from '../services/s3.service.js';
-import SubscriptionService from '../services/subscription.service.js';
 import { 
   createPropertySchema, 
   updatePropertySchema, 
@@ -123,6 +122,22 @@ export const listPublic = async (req, res) => {
         amenities: true,
         media: true,
         status: true,
+        initialRating: true,
+        headerRibbonText: true,
+        headerRibbonPrice: true,
+        nearbyAttractions: true,
+        videos: true,
+        rates: {
+          select: {
+            id: true,
+            category: true,
+            startDate: true,
+            endDate: true,
+            rate: true,
+            minStay: true
+          },
+          orderBy: { startDate: 'asc' }
+        },
         createdAt: true,
         _count: {
           select: {
@@ -212,12 +227,12 @@ export const createByAgentOrOwner = async (req, res) => {
     const data = createPropertySchema.parse(req.body);
     const role = req.user.role;
 
-    // Validate subscription for owners
+    // Gate owners by ownerPaid flag instead of subscription
     if (role === 'OWNER') {
-      const subscriptionCheck = await SubscriptionService.canListProperty(req.user.id);
-      if (!subscriptionCheck.canList) {
+      const owner = await prisma.user.findUnique({ where: { id: req.user.id }, select: { ownerPaid: true } });
+      if (!owner || owner.ownerPaid !== true) {
         return res.status(HTTP_STATUS.FORBIDDEN).json(
-          errorResponse(subscriptionCheck.reason, HTTP_STATUS.FORBIDDEN)
+          errorResponse('Owner access requires payment', HTTP_STATUS.FORBIDDEN)
         );
       }
     }
@@ -236,6 +251,11 @@ export const createByAgentOrOwner = async (req, res) => {
       });
     }
 
+    // Normalize amenities: allow array of strings or record<bool>
+    const normalizedAmenities = Array.isArray(data.amenities)
+      ? data.amenities
+      : (data.amenities || {});
+
     // Create property
     const propertyData = {
       ...data,
@@ -243,18 +263,35 @@ export const createByAgentOrOwner = async (req, res) => {
       status: 'PENDING',
       ownerId: role === 'OWNER' ? req.user.id : null,
       agentId: role === 'AGENT' ? req.user.id : null,
-      amenities: data.amenities || {},
-      media: data.media || []
+      amenities: normalizedAmenities,
+      media: data.media || [],
+      initialRating: data.initialRating ?? null,
+      headerRibbonText: data.headerRibbonText ?? null,
+      headerRibbonPrice: data.headerRibbonPrice ?? null,
+      nearbyAttractions: data.nearbyAttractions ?? null,
+      videos: data.videos ?? [],
     };
 
     const created = await prisma.property.create({ data: propertyData });
-    
     // Generate property ID (1000 + id)
     const propertyId = generatePropertyId(created.id);
     const updated = await prisma.property.update({
       where: { id: created.id },
       data: { propertyId }
     });
+
+    // Persist seasonal pricing ranges if provided
+    if (Array.isArray(data.pricingRanges) && data.pricingRanges.length > 0) {
+      const rows = data.pricingRanges.map((r) => ({
+        propertyId: updated.id,
+        category: r.category || null,
+        startDate: new Date(r.startDate),
+        endDate: new Date(r.endDate),
+        rate: Number(r.rate),
+        minStay: r.minStay != null ? Number(r.minStay) : 1,
+      }));
+      await prisma.propertyRate.createMany({ data: rows });
+    }
 
     res.status(HTTP_STATUS.CREATED).json(
       successResponse(updated, 'Property created successfully', HTTP_STATUS.CREATED)
@@ -314,6 +351,9 @@ export const getPropertyById = async (req, res) => {
             reviews: true,
             bookings: true
           }
+        },
+        rates: {
+          orderBy: { startDate: 'asc' }
         }
       }
     });
@@ -387,14 +427,39 @@ export const updateProperty = async (req, res) => {
       data.cityId = cityRecord.id;
     }
 
-    // Update property
-    const updated = await prisma.property.update({
-      where: { id: Number(id) },
-      data: {
-        ...data,
-        updatedAt: new Date()
-      }
-    });
+    // Normalize amenities if provided
+    const updateData = { ...data };
+    if (data.amenities !== undefined) {
+      updateData.amenities = Array.isArray(data.amenities) ? data.amenities : data.amenities || {};
+    }
+
+    // If pricingRanges provided, replace existing ones atomically
+    let updated;
+    if (Array.isArray(data.pricingRanges)) {
+      const rows = data.pricingRanges.map((r) => ({
+        propertyId: Number(id),
+        category: r.category || null,
+        startDate: new Date(r.startDate),
+        endDate: new Date(r.endDate),
+        rate: Number(r.rate),
+        minStay: r.minStay != null ? Number(r.minStay) : 1,
+      }));
+
+      const [prop] = await prisma.$transaction([
+        prisma.property.update({
+          where: { id: Number(id) },
+          data: { ...updateData, updatedAt: new Date() }
+        }),
+        prisma.propertyRate.deleteMany({ where: { propertyId: Number(id) } }),
+        ...(rows.length ? [prisma.propertyRate.createMany({ data: rows })] : [])
+      ]);
+      updated = prop;
+    } else {
+      updated = await prisma.property.update({
+        where: { id: Number(id) },
+        data: { ...updateData, updatedAt: new Date() }
+      });
+    }
 
     res.json(successResponse(updated, 'Property updated successfully'));
   } catch (error) {
@@ -570,6 +635,9 @@ export const getUserProperties = async (req, res) => {
             reviews: true,
             bookings: true
           }
+        },
+        rates: {
+          orderBy: { startDate: 'asc' }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -680,6 +748,29 @@ export const removePropertyMedia = async (req, res) => {
 
     const toRemove = new Set(media.map((u) => String(u).trim()));
     const remaining = (property.media || []).filter((u) => !toRemove.has(String(u).trim()));
+
+    // Best-effort: delete from S3 if the URL points to our bucket
+    try {
+      const bucket = process.env.AWS_S3_BUCKET_NAME;
+      if (bucket) {
+        for (const url of toRemove) {
+          try {
+            const parsed = new URL(url);
+            // Accept both virtual-hosted-style and path-style just by taking pathname as key
+            const key = parsed.pathname.replace(/^\//, '');
+            // Only attempt if hostname includes our bucket (extra safety)
+            if (parsed.hostname.includes(`${bucket}.s3.`) || parsed.hostname.startsWith('s3.')) {
+              await S3Service.deleteFile(key);
+            }
+          } catch (err) {
+            // ignore malformed URL or deletion failure for individual items
+            // console.warn('S3 delete skip:', err?.message || err);
+          }
+        }
+      }
+    } catch (_) {
+      // ignore batch delete errors; DB update will still proceed
+    }
 
     const updated = await prisma.property.update({
       where: { id: Number(id) },

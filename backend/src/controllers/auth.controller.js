@@ -20,7 +20,13 @@ export const signup = async (req, res) => {
         errorResponse('Admin signup is not allowed. Contact super admin.', HTTP_STATUS.BAD_REQUEST)
       );
     }
-    const allowedRoles = ['AGENT', 'OWNER', 'USER'];
+    // Disallow agent signup via public route
+    if (data.role === 'AGENT') {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('Agent signup is not allowed. Contact super admin to create an agent account.', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+    const allowedRoles = ['OWNER', 'USER'];
     
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({ 
@@ -38,7 +44,7 @@ export const signup = async (req, res) => {
     const passwordHash = await bcrypt.hash(data.password, saltRounds);
 
     // Create user
-    const user = await prisma.user.create({
+    const userRaw = await prisma.user.create({
       data: {
         name: data.name,
         email: data.email.toLowerCase(),
@@ -58,6 +64,7 @@ export const signup = async (req, res) => {
         createdAt: true
       }
     });
+    const user = userRaw.role === 'OWNER' ? userRaw : userRaw; // no ownerPaid selected here
 
     res.status(HTTP_STATUS.CREATED).json(
       successResponse(user, 'User registered successfully', HTTP_STATUS.CREATED)
@@ -124,16 +131,19 @@ export const login = async (req, res) => {
       data: { lastLoginAt: new Date() }
     });
 
+    const responseUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      avatar: user.avatar,
+      ...(user.role === 'OWNER' ? { ownerPaid: user.ownerPaid } : {})
+    };
+
     res.json(successResponse({
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        avatar: user.avatar
-      }
+      user: responseUser
     }, 'Login successful'));
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -151,7 +161,7 @@ export const login = async (req, res) => {
 
 export const me = async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({
+    const userRaw = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: {
         id: true,
@@ -166,6 +176,7 @@ export const me = async (req, res) => {
         updatedAt: true
       }
     });
+    const user = userRaw?.role === 'OWNER' ? userRaw : userRaw ? { ...userRaw } : null;
 
     if (!user) {
       return res.status(HTTP_STATUS.NOT_FOUND).json(

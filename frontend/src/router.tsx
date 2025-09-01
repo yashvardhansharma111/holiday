@@ -10,6 +10,7 @@ import SuperAdminDashboard from './pages/dashboards/SuperAdminDashboard'
 import HiddenAdminLogin from './pages/HiddenAdminLogin'
 import HiddenSuperAdminLogin from './pages/HiddenSuperAdminLogin'
 import { useAuth } from './context/auth'
+import PropertyDetails from './pages/PropertyDetails'
 
 function useHashLocation() {
   const [hash, setHash] = useState(window.location.hash || '#/')
@@ -38,8 +39,24 @@ export default function Router() {
       if (role === 'SUPER_ADMIN') return <SuperAdminDashboard />
       if (role === 'ADMIN') return <AdminDashboard />
       if (role === 'AGENT') return <AgentDashboard />
-      if (role === 'OWNER') return <OwnerDashboard />
+      if (role === 'OWNER') {
+        if (user?.ownerPaid) return <OwnerDashboard />
+        return (
+          <div className="min-h-[60vh] flex items-center justify-center p-10">
+            <div className="text-center">
+              <h1 className="text-2xl font-semibold mb-2">Access requires payment</h1>
+              <p className="text-gray-600">Please contact support or an admin to activate your owner access.</p>
+              <a className="text-purple-700 hover:underline inline-block mt-3" href="#/">Go Home</a>
+            </div>
+          </div>
+        )
+      }
       return <UserDashboard />
+    }
+
+    // Public property details route
+    if (path.startsWith('/properties/')) {
+      return <PropertyDetails />
     }
 
     if (path.startsWith('/dashboard/')) {
@@ -47,7 +64,18 @@ export default function Router() {
       if (seg === 'super-admin') return user?.role === 'SUPER_ADMIN' ? <SuperAdminDashboard /> : <HiddenSuperAdminLogin />
       if (seg === 'admin') return user?.role === 'ADMIN' ? <AdminDashboard /> : <HiddenAdminLogin />
       if (seg === 'agent') return <AgentDashboard />
-      if (seg === 'owner') return <OwnerDashboard />
+      if (seg === 'owner') {
+        if (user?.role === 'OWNER' && user?.ownerPaid) return <OwnerDashboard />
+        return (
+          <div className="min-h-[60vh] flex items-center justify-center p-10">
+            <div className="text-center">
+              <h1 className="text-2xl font-semibold mb-2">Access requires payment</h1>
+              <p className="text-gray-600">Please contact support or an admin to activate your owner access.</p>
+              <a className="text-purple-700 hover:underline inline-block mt-3" href="#/">Go Home</a>
+            </div>
+          </div>
+        )
+      }
       if (seg === 'user') return <UserDashboard />
       return <UserDashboard />
     }
@@ -60,7 +88,7 @@ export default function Router() {
         </div>
       </div>
     )
-  }, [hash, user?.role])
+  }, [hash, user?.role, user?.ownerPaid])
 
   return view
 }

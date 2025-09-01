@@ -1,16 +1,34 @@
+import 'dotenv/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 
+const REGION = process.env.AWS_REGION;
+const ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID;
+const SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
+
+function ensureAwsEnv() {
+  const missing = [];
+  if (!REGION) missing.push('AWS_REGION');
+  if (!ACCESS_KEY) missing.push('AWS_ACCESS_KEY_ID');
+  if (!SECRET_KEY) missing.push('AWS_SECRET_ACCESS_KEY');
+  if (!BUCKET_NAME) missing.push('AWS_S3_BUCKET_NAME');
+  if (missing.length) {
+    throw new Error(`Missing AWS configuration: ${missing.join(', ')}`);
+  }
+}
+
+// Validate env eagerly so errors are clear
+ensureAwsEnv();
+
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
+  region: REGION,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId: ACCESS_KEY,
+    secretAccessKey: SECRET_KEY,
   },
 });
-
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
 
 export class S3Service {
   // Generate presigned URL for direct upload
@@ -21,7 +39,7 @@ export class S3Service {
       Bucket: BUCKET_NAME,
       Key: key,
       ContentType: fileType,
-      Expires: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+      ...(S3_PUBLIC_READ ? { ACL: 'public-read' } : {}),
     });
 
     try {
@@ -29,7 +47,7 @@ export class S3Service {
       return {
         presignedUrl,
         key,
-        url: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+        url: `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`
       };
     } catch (error) {
       throw new Error(`Failed to generate presigned URL: ${error.message}`);
@@ -75,14 +93,14 @@ export class S3Service {
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
-      ACL: 'public-read',
+      ...(S3_PUBLIC_READ ? { ACL: 'public-read' } : {}),
     });
 
     try {
       await s3Client.send(command);
       return {
         key,
-        url: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`,
+        url: `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`,
         size: file.size,
         type: file.mimetype
       };
