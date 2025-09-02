@@ -292,14 +292,7 @@ export const updateUser = async (req, res) => {
         errorResponse('User not found', HTTP_STATUS.NOT_FOUND)
       );
     }
-
-    // Only SUPER_ADMIN can modify a SUPER_ADMIN account
-    if (existingUser.role === 'SUPER_ADMIN' && req.user.role !== 'SUPER_ADMIN') {
-      return res.status(HTTP_STATUS.FORBIDDEN).json(
-        errorResponse('Only super admins can modify super admin users', HTTP_STATUS.FORBIDDEN)
-      );
-    }
-
+    
     // Prevent role escalation (non-super admins can't create super admins)
     if (req.user.role !== 'SUPER_ADMIN' && data.role === 'SUPER_ADMIN') {
       return res.status(HTTP_STATUS.FORBIDDEN).json(
@@ -318,13 +311,6 @@ export const updateUser = async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(data, 'ownerPaid') && existingUser.role !== 'OWNER') {
       return res.status(HTTP_STATUS.BAD_REQUEST).json(
         errorResponse('ownerPaid can only be set for OWNER users', HTTP_STATUS.BAD_REQUEST)
-      );
-    }
-
-    // Only SUPER_ADMIN can update ownerPaid flag
-    if (Object.prototype.hasOwnProperty.call(data, 'ownerPaid') && req.user.role !== 'SUPER_ADMIN') {
-      return res.status(HTTP_STATUS.FORBIDDEN).json(
-        errorResponse('Only super admins can update ownerPaid status', HTTP_STATUS.FORBIDDEN)
       );
     }
 
@@ -850,12 +836,6 @@ export const setSubscriptionPaidStatus = async (req, res) => {
     if (typeof paid !== 'boolean') {
       return res.status(HTTP_STATUS.BAD_REQUEST).json(
         errorResponse('paid must be a boolean', HTTP_STATUS.BAD_REQUEST)
-      );
-    }
-    // Only SUPER_ADMIN can toggle subscription paid status
-    if (req.user.role !== 'SUPER_ADMIN') {
-      return res.status(HTTP_STATUS.FORBIDDEN).json(
-        errorResponse(ERROR_MESSAGES.FORBIDDEN, HTTP_STATUS.FORBIDDEN)
       );
     }
     const updated = await SubscriptionService.updateSubscriptionPaidStatus(Number(subscriptionId), paid);

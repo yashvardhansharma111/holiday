@@ -31,7 +31,7 @@ router.delete('/subscription-plans/:id', requireRole('SUPER_ADMIN'), adminContro
 // Subscription management (manual)
 router.post('/subscriptions/users/:userId/grant', adminController.grantUserSubscription);
 router.post('/subscriptions/:subscriptionId/cancel', adminController.cancelUserSubscription);
-router.put('/subscriptions/:subscriptionId/paid', requireRole('SUPER_ADMIN'), adminController.setSubscriptionPaidStatus);
+router.put('/subscriptions/:subscriptionId/paid', adminController.setSubscriptionPaidStatus);
 router.get('/subscriptions/users/:userId', adminController.getUserSubscription);
 
 // Analytics and system health

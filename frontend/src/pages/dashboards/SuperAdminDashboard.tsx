@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/auth'
 import { AdminAPI } from '../../lib/api'
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, PieChart, Pie, Cell, CartesianGrid } from 'recharts'
 
 type TabKey = 'users' | 'queue' | 'plans' | 'subscriptions' | 'analytics' | 'health'
 
@@ -71,12 +70,6 @@ function UsersTab() {
   const [password, setPassword] = useState('')
   const [creating, setCreating] = useState(false)
   const [createMsg, setCreateMsg] = useState<string | null>(null)
-  // create agent form
-  const [agentName, setAgentName] = useState('')
-  const [agentEmail, setAgentEmail] = useState('')
-  const [agentPassword, setAgentPassword] = useState('')
-  const [creatingAgent, setCreatingAgent] = useState(false)
-  const [createAgentMsg, setCreateAgentMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [togglingId, setTogglingId] = useState<number | null>(null)
 
@@ -106,19 +99,6 @@ function UsersTab() {
     } finally { setCreating(false) }
   }
 
-  const onCreateAgent = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setCreatingAgent(true); setCreateAgentMsg(null); setError(null)
-    try {
-      await AdminAPI.createAgentUser({ name: agentName, email: agentEmail, password: agentPassword })
-      setCreateAgentMsg('Agent user created')
-      setAgentName(''); setAgentEmail(''); setAgentPassword('')
-      load()
-    } catch (e:any) {
-      setError(e?.message || 'Failed to create agent user')
-    } finally { setCreatingAgent(false) }
-  }
-
   const toggleOwnerPaid = async (u: any) => {
     setTogglingId(u.id)
     try {
@@ -133,9 +113,6 @@ function UsersTab() {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Users</h2>
-      <div className="mb-3 text-xs text-gray-600 bg-purple-50 border border-purple-200 rounded px-3 py-2">
-        <strong>Super Admin:</strong> can create Admins and Agents, toggle Owner Paid for Owners, manage all users and subscriptions.
-      </div>
       <div className="grid md:grid-cols-2 gap-6">
         <div className="border rounded p-4">
           <h3 className="font-medium mb-3">Create Admin</h3>
@@ -146,17 +123,6 @@ function UsersTab() {
             {createMsg && <p className="text-green-700 text-sm">{createMsg}</p>}
             {error && <p className="text-red-600 text-sm">{error}</p>}
             <button disabled={creating} className="bg-purple-600 text-white px-4 py-2 rounded disabled:opacity-60">{creating ? 'Creating...' : 'Create Admin'}</button>
-          </form>
-        </div>
-        <div className="border rounded p-4">
-          <h3 className="font-medium mb-3">Create Agent</h3>
-          <form className="space-y-2" onSubmit={onCreateAgent}>
-            <input className="w-full border rounded px-3 py-2" placeholder="Name" value={agentName} onChange={e=>setAgentName(e.target.value)} required />
-            <input className="w-full border rounded px-3 py-2" placeholder="Email" type="email" value={agentEmail} onChange={e=>setAgentEmail(e.target.value)} required />
-            <input className="w-full border rounded px-3 py-2" placeholder="Password" type="password" value={agentPassword} onChange={e=>setAgentPassword(e.target.value)} required />
-            {createAgentMsg && <p className="text-green-700 text-sm">{createAgentMsg}</p>}
-            {error && <p className="text-red-600 text-sm">{error}</p>}
-            <button disabled={creatingAgent} className="bg-purple-600 text-white px-4 py-2 rounded disabled:opacity-60">{creatingAgent ? 'Creating...' : 'Create Agent'}</button>
           </form>
         </div>
         <div className="border rounded p-4">
@@ -367,9 +333,6 @@ function SubscriptionsTab() {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Subscriptions</h2>
-      <div className="mb-3 text-xs text-gray-600 bg-purple-50 border border-purple-200 rounded px-3 py-2">
-        <strong>Tip:</strong> Only Super Admin can mark a subscription as paid/unpaid. Use Search to quickly locate users and toggle Owner Paid for Owners.
-      </div>
       <div className="grid md:grid-cols-2 gap-6">
         <div className="border rounded p-4 space-y-2">
           <h3 className="font-medium">Grant Subscription</h3>
@@ -451,87 +414,12 @@ function AnalyticsTab() {
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
-
-  const roleData = (data?.users?.byRole || []).map((r:any)=>({ role: r.role, count: r._count?.role || r._count || 0 }))
-  const propertyData = [
-    { name: 'Live', value: data?.properties?.live || 0 },
-    { name: 'Pending', value: data?.properties?.pending || 0 },
-  ]
-  const bookingData = [
-    { name: 'Total', value: data?.bookings?.total || 0 },
-    { name: 'Confirmed', value: data?.bookings?.confirmed || 0 },
-    { name: 'Pending', value: data?.bookings?.pending || 0 },
-  ]
-  const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#06b6d4']
-
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Platform Analytics</h2>
-      <div className="grid md:grid-cols-4 gap-4 mb-4">
-        <div className="border rounded p-3 bg-white">
-          <div className="text-xs text-gray-500">Total Users</div>
-          <div className="text-2xl font-semibold">{data?.users?.total ?? '—'}</div>
-        </div>
-        <div className="border rounded p-3 bg-white">
-          <div className="text-xs text-gray-500">New Users</div>
-          <div className="text-2xl font-semibold">{data?.users?.new ?? '—'}</div>
-        </div>
-        <div className="border rounded p-3 bg-white">
-          <div className="text-xs text-gray-500">Revenue (Total)</div>
-          <div className="text-2xl font-semibold">${data?.revenue?.total?.toLocaleString?.() ?? '0'}</div>
-        </div>
-        <div className="border rounded p-3 bg-white">
-          <div className="text-xs text-gray-500">Revenue (Period)</div>
-          <div className="text-2xl font-semibold">${data?.revenue?.period?.toLocaleString?.() ?? '0'}</div>
-        </div>
-      </div>
-      <button onClick={load} className="mb-4 text-sm px-3 py-1 border rounded">Refresh</button>
+      <button onClick={load} className="mb-3 text-sm px-3 py-1 border rounded">Refresh</button>
       {loading ? <p>Loading...</p> : error ? <p className="text-red-600">{error}</p> : (
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="border rounded p-4 bg-white">
-            <div className="font-medium mb-2">Users by Role</div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={roleData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="role" />
-                  <YAxis allowDecimals={false} />
-                  <ReTooltip />
-                  <Bar dataKey="count" fill="#6366f1" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="border rounded p-4 bg-white">
-            <div className="font-medium mb-2">Properties Status</div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={propertyData} dataKey="value" nameKey="name" outerRadius={90} label>
-                    {propertyData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <ReTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="border rounded p-4 bg-white md:col-span-2">
-            <div className="font-medium mb-2">Bookings Overview</div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={bookingData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <ReTooltip />
-                  <Bar dataKey="value" fill="#06b6d4" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
+        <pre className="text-xs bg-gray-50 p-3 rounded overflow-auto max-h-[420px]">{JSON.stringify(data, null, 2)}</pre>
       )}
     </div>
   )
