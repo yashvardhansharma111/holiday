@@ -33,7 +33,20 @@ export default function Navbar() {
             >
               Dashboard
             </a>
-            <button onClick={logout} className="px-3 py-1 rounded bg-white/15 hover:bg-white/25">Logout</button>
+            {/* Desktop logout button */}
+            <button onClick={logout} className="hidden md:inline px-3 py-1 rounded bg-white/15 hover:bg-white/25">Logout</button>
+            {/* Mobile logout icon button */}
+            <button
+              onClick={logout}
+              aria-label="Logout"
+              className="md:hidden p-2 rounded bg-white/15 hover:bg-white/25"
+            >
+              {/* simple power icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <path d="M12 2v10" />
+                <path d="M5.5 5.5a8 8 0 1 0 13 0" />
+              </svg>
+            </button>
           </>
         )}
       </div>

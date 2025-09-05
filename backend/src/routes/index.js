@@ -6,6 +6,7 @@ import bookingRoutes from './bookings.routes.js';
 import adminRoutes from './admin.routes.js';
 import subscriptionRoutes from './subscriptions.routes.js';
 import mediaRoutes from './media.routes.js';
+import destinationsRoutes from './destinations.routes.js';
 
 const router = express.Router();
 
@@ -32,7 +33,8 @@ router.get('/docs', (req, res) => {
       bookings: '/bookings',
       admin: '/admin',
       subscriptions: '/subscriptions',
-      media: '/media'
+      media: '/media',
+      destinations: '/destinations'
     },
     documentation: 'https://github.com/your-repo/docs'
   });
@@ -46,5 +48,6 @@ router.use('/bookings', bookingRoutes);
 router.use('/admin', adminRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/media', mediaRoutes);
+router.use('/destinations', destinationsRoutes);
 
 export default router;

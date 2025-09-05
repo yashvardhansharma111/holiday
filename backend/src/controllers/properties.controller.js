@@ -33,7 +33,11 @@ export const listPublic = async (req, res) => {
       checkIn,
       checkOut,
       sortBy = 'createdAt',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      regionId,
+      destinationId,
+      regionSlug,
+      destinationSlug
     } = req.query;
 
     // Build where clause
@@ -48,6 +52,16 @@ export const listPublic = async (req, res) => {
     // Location filters
     if (city) where.city = { contains: city, mode: 'insensitive' };
     if (country) where.country = { contains: country, mode: 'insensitive' };
+    
+    // Region/Destination filters
+    if (regionId) where.regionId = parseInt(regionId);
+    if (destinationId) where.destinationId = parseInt(destinationId);
+    if (regionSlug) {
+      where.region = { slug: regionSlug };
+    }
+    if (destinationSlug) {
+      where.destination = { slug: destinationSlug };
+    }
     
     // Price filters
     if (minPrice || maxPrice) {
@@ -112,42 +126,68 @@ export const listPublic = async (req, res) => {
         address: true,
         latitude: true,
         longitude: true,
-        price: true,
-        pricePerNight: true,
+        media: true,
+        status: true,
         maxGuests: true,
         bedrooms: true,
         bathrooms: true,
         propertyType: true,
         instantBooking: true,
-        amenities: true,
-        media: true,
-        status: true,
-        initialRating: true,
-        headerRibbonText: true,
         headerRibbonPrice: true,
-        nearbyAttractions: true,
-        videos: true,
+        headerRibbonText: true,
+        initialRating: true,
+        isFeatured: true,
+        isPopular: true,
+        createdAt: true,
+        updatedAt: true,
+        cityRef: {
+          select: {
+            id: true,
+            name: true,
+            country: true,
+            isPopular: true
+          }
+        },
+        region: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        },
+        destination: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
         rates: {
           select: {
             id: true,
-            category: true,
-            startDate: true,
-            endDate: true,
             rate: true,
-            minStay: true
-          },
-          orderBy: { startDate: 'asc' }
-        },
-        createdAt: true,
-        _count: {
-          select: {
-            reviews: true,
-            bookings: true
+            date: true
           }
         },
         reviews: {
           select: {
-            rating: true
+            id: true,
+            rating: true,
+            comment: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
           }
         }
       },
@@ -814,3 +854,135 @@ export const getPresignedUploadUrl = async (req, res) => {
     );
   }
 };
+
+// Update feature flags (Agent only)
+const updateFeatureFlags = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isFeatured, isPopular } = req.body;
+    const user = req.user;
+
+    // Check if user is an agent
+    if (user.role !== 'AGENT') {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse('Only agents can update featured/popular flags', HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
+    // Validate property exists and belongs to agent
+    const existingProperty = await prisma.property.findUnique({
+      where: { id: parseInt(id) },
+      include: { agent: true }
+    });
+
+    if (!existingProperty) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json(
+        errorResponse('Property not found', HTTP_STATUS.NOT_FOUND)
+      );
+    }
+
+    // Check if agent owns this property or is authorized to modify it
+    if (existingProperty.agentId !== user.id) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse('You can only update feature flags for your own properties', HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
+    // Update feature flags
+    const updatedProperty = await prisma.property.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(typeof isFeatured === 'boolean' && { isFeatured }),
+        ...(typeof isPopular === 'boolean' && { isPopular })
+      },
+      include: {
+        owner: { select: { id: true, name: true, email: true } },
+        agent: { select: { id: true, name: true, email: true } },
+        cityRef: true,
+        reviews: {
+          include: { user: { select: { name: true } } }
+        }
+      }
+    });
+
+    return res.status(HTTP_STATUS.OK).json(
+      successResponse('Feature flags updated successfully', updatedProperty)
+    );
+
+  } catch (error) {
+    console.error('Update feature flags error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to update feature flags', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Get featured properties (Public)
+const getFeaturedProperties = async (req, res) => {
+  try {
+    const { limit = 3 } = req.query;
+
+    const properties = await prisma.property.findMany({
+      where: {
+        isFeatured: true,
+        status: 'LIVE'
+      },
+      take: parseInt(limit),
+      include: {
+        owner: { select: { id: true, name: true } },
+        agent: { select: { id: true, name: true } },
+        cityRef: true,
+        reviews: {
+          include: { user: { select: { name: true } } }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return res.status(HTTP_STATUS.OK).json(
+      successResponse('Featured properties retrieved successfully', properties)
+    );
+
+  } catch (error) {
+    console.error('Get featured properties error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to retrieve featured properties', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Get popular properties (Public)
+const getPopularProperties = async (req, res) => {
+  try {
+    const { limit = 3 } = req.query;
+
+    const properties = await prisma.property.findMany({
+      where: {
+        isPopular: true,
+        status: 'LIVE'
+      },
+      take: parseInt(limit),
+      include: {
+        owner: { select: { id: true, name: true } },
+        agent: { select: { id: true, name: true } },
+        cityRef: true,
+        reviews: {
+          include: { user: { select: { name: true } } }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return res.status(HTTP_STATUS.OK).json(
+      successResponse('Popular properties retrieved successfully', properties)
+    );
+
+  } catch (error) {
+    console.error('Get popular properties error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to retrieve popular properties', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+export { updateFeatureFlags, getFeaturedProperties, getPopularProperties };

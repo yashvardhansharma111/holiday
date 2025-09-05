@@ -11,6 +11,7 @@ import HiddenAdminLogin from './pages/HiddenAdminLogin'
 import HiddenSuperAdminLogin from './pages/HiddenSuperAdminLogin'
 import { useAuth } from './context/auth'
 import PropertyDetails from './pages/PropertyDetails'
+import DestinationProperties from './pages/DestinationProperties'
 
 function useHashLocation() {
   const [hash, setHash] = useState(window.location.hash || '#/')
@@ -57,6 +58,11 @@ export default function Router() {
     // Public property details route
     if (path.startsWith('/properties/')) {
       return <PropertyDetails />
+    }
+
+    // Destination properties route
+    if (path.startsWith('/destinations/')) {
+      return <DestinationProperties />
     }
 
     if (path.startsWith('/dashboard/')) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/auth'
 import { PropertiesAPI, BookingsAPI, MediaAPI } from '../../lib/api'
+import { PropertiesAPI as NewPropertiesAPI } from '../../api'
 import { 
   Home, 
   Plus, 
@@ -310,11 +311,14 @@ function AgentPropertyCard({ prop, onChanged }: { prop: any; onChanged: () => vo
   const [city, setCity] = useState(prop.city || '')
   const [country, setCountry] = useState(prop.country || '')
   const [instantBooking, setInstantBooking] = useState(!!prop.instantBooking)
+  const [isFeatured, setIsFeatured] = useState(!!prop.isFeatured)
+  const [isPopular, setIsPopular] = useState(!!prop.isPopular)
   const [media, setMedia] = useState<any[]>(prop.media || [])
   const [openBookings, setOpenBookings] = useState(false)
   const [bookingsList, setBookingsList] = useState<any[] | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [updatingFlags, setUpdatingFlags] = useState(false)
 
   const save = async () => {
     setSaving(true)
@@ -373,6 +377,24 @@ function AgentPropertyCard({ prop, onChanged }: { prop: any; onChanged: () => vo
       await loadBookings()
     } catch (e:any) { alert(e?.message || 'Failed to confirm booking') }
     finally { setBusy(null) }
+  }
+
+  const updateFeatureFlags = async () => {
+    setUpdatingFlags(true)
+    try {
+      const token = localStorage.getItem('jwt')
+      if (!token) throw new Error('No authentication token found')
+      
+      await NewPropertiesAPI.updateFeatureFlags(prop.id, { isFeatured, isPopular }, token)
+      onChanged()
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update feature flags')
+      // Reset to original values on error
+      setIsFeatured(!!prop.isFeatured)
+      setIsPopular(!!prop.isPopular)
+    } finally {
+      setUpdatingFlags(false)
+    }
   }
 
   return (
@@ -448,16 +470,60 @@ function AgentPropertyCard({ prop, onChanged }: { prop: any; onChanged: () => vo
           </div>
         </div>
         
-        <div className="flex items-center gap-4 mb-6">
-          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-            <input 
-              type="checkbox" 
-              checked={instantBooking} 
-              onChange={e=>setInstantBooking(e.target.checked)}
-              className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
-            />
-            Instant booking available
-          </label>
+        <div className="space-y-4 mb-6">
+          <div className="flex items-center gap-4">
+            <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input 
+                type="checkbox" 
+                checked={instantBooking} 
+                onChange={e=>setInstantBooking(e.target.checked)}
+                className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
+              />
+              Instant booking available
+            </label>
+          </div>
+          
+          {/* Feature Flags Section */}
+          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Star className="w-4 h-4 text-purple-600" />
+              Feature Flags
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input 
+                  type="checkbox" 
+                  checked={isFeatured} 
+                  onChange={e=>setIsFeatured(e.target.checked)}
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
+                />
+                <span className="flex items-center gap-1">
+                  <Star className="w-3 h-3 text-yellow-500" />
+                  Featured Property
+                </span>
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input 
+                  type="checkbox" 
+                  checked={isPopular} 
+                  onChange={e=>setIsPopular(e.target.checked)}
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
+                />
+                <span className="flex items-center gap-1">
+                  <Star className="w-3 h-3 text-orange-500" />
+                  Popular Property
+                </span>
+              </label>
+            </div>
+            <button 
+              onClick={updateFeatureFlags}
+              disabled={updatingFlags}
+              className="mt-3 inline-flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors text-sm"
+            >
+              <Star className="w-3 h-3" />
+              {updatingFlags ? 'Updating...' : 'Update Flags'}
+            </button>
+          </div>
         </div>
 
         {/* Action Buttons */}

@@ -7,6 +7,8 @@ const router = express.Router();
 // Public routes
 router.get('/', propertyController.listPublic);
 router.get('/cities', propertyController.getPopularCities);
+router.get('/featured', propertyController.getFeaturedProperties);
+router.get('/popular', propertyController.getPopularProperties);
 router.get('/:id', propertyController.getPropertyById);
 
 // Protected routes - Agent/Owner
@@ -23,6 +25,9 @@ router.post('/media/presign', requireAuth, propertyController.getPresignedUpload
 
 // User's properties
 router.get('/user/list', requireAuth, propertyController.getUserProperties);
+
+// Agent routes - Feature flags
+router.put('/:id/feature-flags', requireAuth, requireRole('AGENT'), propertyController.updateFeatureFlags);
 
 // Admin routes
 router.get('/admin/queue', requireAuth, requireRole('ADMIN', 'SUPER_ADMIN'), propertyController.getAdminReviewQueue);

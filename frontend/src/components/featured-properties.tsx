@@ -1,105 +1,210 @@
+import { useEffect, useState } from 'react'
+import { PropertiesAPI } from '../api'
+import { Star, ArrowRight, MapPin, Users, Bed } from 'lucide-react'
+
 export default function FeaturedProperties() {
-    const properties = [
-      {
-        id: 1,
-        type: "Cabin",
-        guests: 6,
-        bedrooms: 3,
-        title: "Adorable Mountain A-Frame Tucked in the Pines - Moose Creek Lodge",
-        location: "Fairplay, Colorado",
-        rating: 4.9,
-        reviews: 126,
-        image: "/property1.jpg",
-      },
-      {
-        id: 2,
-        type: "House",
-        guests: 6,
-        bedrooms: 3,
-        title: "Sea Paradise Cottage",
-        location: "Topsail Beach, North Carolina",
-        rating: 4.8,
-        reviews: 15,
-        image: "/property2.jpg",
-      },
-      {
-        id: 3,
-        type: "House",
-        guests: 8,
-        bedrooms: 3,
-        title: "Fully equipped house with barbecue | Mountain view",
-        location: "Estes Park, Colorado",
-        rating: 4.5,
-        reviews: 4,
-        image: "/property3.jpg",
-      },
-      {
-        id: 4,
-        type: "House",
-        guests: 6,
-        bedrooms: 2,
-        title: "Cloudcroft Home w/ Spacious Stargazing Deck!",
-        location: "Cloudcroft, New Mexico",
-        rating: 4.8,
-        reviews: 175,
-        image: "/property4.jpg",
-      },
-    ]
-  
+  const [featuredProperties, setFeaturedProperties] = useState<any[]>([])
+  const [popularProperties, setPopularProperties] = useState<any[]>([])
+  const [featuredLoading, setFeaturedLoading] = useState(true)
+  const [popularLoading, setPopularLoading] = useState(true)
+  const [featuredError, setFeaturedError] = useState<string | null>(null)
+  const [popularError, setPopularError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadFeaturedProperties = async () => {
+      try {
+        setFeaturedLoading(true)
+        const response = await PropertiesAPI.getFeatured(3)
+        const list = Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray((response as any)?.properties)
+            ? (response as any).properties
+            : Array.isArray(response)
+              ? (response as any)
+              : []
+        setFeaturedProperties(list)
+      } catch (error: any) {
+        setFeaturedError(error.message || 'Failed to load featured properties')
+      } finally {
+        setFeaturedLoading(false)
+      }
+    }
+
+    const loadPopularProperties = async () => {
+      try {
+        setPopularLoading(true)
+        const response = await PropertiesAPI.getPopular(3)
+        const list = Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray((response as any)?.properties)
+            ? (response as any).properties
+            : Array.isArray(response)
+              ? (response as any)
+              : []
+        setPopularProperties(list)
+      } catch (error: any) {
+        setPopularError(error.message || 'Failed to load popular properties')
+      } finally {
+        setPopularLoading(false)
+      }
+    }
+
+    loadFeaturedProperties()
+    loadPopularProperties()
+  }, [])
+
+  const PropertyCard = ({ property, type }: { property: any; type: 'featured' | 'popular' }) => {
+    const primaryImage = Array.isArray(property.media) && property.media.length > 0 
+      ? property.media[0].url 
+      : '/placeholder.svg'
+    
+    const averageRating = property.reviews?.length > 0 
+      ? (property.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / property.reviews.length).toFixed(1)
+      : property.initialRating || '4.5'
+
     return (
-      <section className="py-20 px-6 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4 text-center">Our top vacation rentals</h2>
-          <p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
-            Discover handpicked properties that offer exceptional experiences and unforgettable stays
-          </p>
-  
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {properties.map((property) => (
-              <div key={property.id} className="group cursor-pointer">
-                <div className="relative overflow-hidden rounded-2xl mb-4 aspect-[4/3]">
-                  <img
-                    src={property.image || "/placeholder.svg"}
-                    alt={property.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-800">
-                    {property.type}
-                  </div>
-                </div>
-  
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span>{property.guests} guests</span>
-                    <span>•</span>
-                    <span>{property.bedrooms} bedrooms</span>
-                  </div>
-  
-                  <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-purple-600 transition-colors">
-                    {property.title}
-                  </h3>
-  
-                  <p className="text-gray-600 text-sm">{property.location}</p>
-  
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-1">
-                      <svg className="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      <span className="text-sm font-medium">{property.rating}</span>
-                      <span className="text-sm text-gray-500">({property.reviews})</span>
-                    </div>
-  
-                    <button className="text-purple-600 hover:text-purple-700 font-medium text-sm transition-colors">
-                      View deal
-                    </button>
-                  </div>
-                </div>
+      <div className="group cursor-pointer">
+        <div className="relative overflow-hidden rounded-2xl mb-4 aspect-[4/3]">
+          <img
+            src={primaryImage}
+            alt={property.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+          <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-800 flex items-center gap-1">
+            <Star className={`w-3 h-3 ${type === 'featured' ? 'text-yellow-500' : 'text-orange-500'}`} />
+            {type === 'featured' ? 'Featured' : 'Popular'}
+          </div>
+          {property.instantBooking && (
+            <div className="absolute top-4 right-4 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+              Instant Book
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            <div className="flex items-center gap-1">
+              <Users className="w-3 h-3" />
+              <span>{property.maxGuests} guests</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Bed className="w-3 h-3" />
+              <span>{property.bedrooms} bedrooms</span>
+            </div>
+          </div>
+
+          <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-purple-600 transition-colors">
+            {property.title}
+          </h3>
+
+          <div className="flex items-center gap-1 text-gray-600 text-sm">
+            <MapPin className="w-3 h-3" />
+            <span>{property.city}, {property.country}</span>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center gap-1">
+              <Star className="w-4 h-4 text-yellow-400 fill-current" />
+              <span className="text-sm font-medium">{averageRating}</span>
+              <span className="text-sm text-gray-500">({property.reviews?.length || 0})</span>
+            </div>
+
+            <div className="text-right">
+              <div className="text-sm font-semibold text-gray-900">
+                ${property.price}{property.pricePerNight ? '/night' : ''}
               </div>
-            ))}
+            </div>
           </div>
         </div>
-      </section>
+      </div>
     )
   }
-  
+
+  const PropertySection = ({ 
+    title, 
+    subtitle, 
+    properties, 
+    loading, 
+    error, 
+    type,
+    linkPath 
+  }: { 
+    title: string; 
+    subtitle: string; 
+    properties: any[] | any; 
+    loading: boolean; 
+    error: string | null; 
+    type: 'featured' | 'popular';
+    linkPath: string;
+  }) => (
+    <div className="mb-16">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">{title}</h2>
+        <p className="text-gray-600 max-w-2xl mx-auto">{subtitle}</p>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {[1,2,3].map(i => (
+            <div key={i} className="animate-pulse">
+              <div className="bg-gray-200 rounded-2xl aspect-[4/3] mb-4" />
+              <div className="space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-2/3" />
+                <div className="h-4 bg-gray-200 rounded w-1/2" />
+                <div className="h-4 bg-gray-200 rounded w-3/4" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="text-center py-8">
+          <p className="text-red-600 mb-4">{error}</p>
+        </div>
+      ) : (Array.isArray(properties) && properties.length > 0) ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
+            {(Array.isArray(properties) ? properties : []).map((property) => (
+              <PropertyCard key={property.id} property={property} type={type} />
+            ))}
+          </div>
+          <div className="text-center">
+            <button className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium">
+              See All {title}
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="text-center py-8">
+          <p className="text-gray-600">No {type} properties available at the moment.</p>
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <section className="py-20 px-6 bg-white">
+      <div className="max-w-7xl mx-auto">
+        <PropertySection
+          title="Featured Properties"
+          subtitle="Handpicked exceptional properties that offer unforgettable experiences"
+          properties={featuredProperties}
+          loading={featuredLoading}
+          error={featuredError}
+          type="featured"
+          linkPath="/properties/featured"
+        />
+        
+        <PropertySection
+          title="Popular Properties"
+          subtitle="Most loved destinations chosen by our community of travelers"
+          properties={popularProperties}
+          loading={popularLoading}
+          error={popularError}
+          type="popular"
+          linkPath="/properties/popular"
+        />
+      </div>
+    </section>
+  )
+}
