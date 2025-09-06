@@ -120,8 +120,6 @@ export const MediaAPI = {
   },
   uploadToPresigned: async (presignedUrl: string, file: File) => {
     const headers: Record<string, string> = { 'Content-Type': file.type }
-    const publicRead = String(import.meta.env.VITE_S3_PUBLIC_READ || 'false').toLowerCase() === 'true'
-    if (publicRead) headers['x-amz-acl'] = 'public-read'
     const res = await fetch(presignedUrl, { method: 'PUT', headers, body: file })
     if (!res.ok) throw new Error(`S3 upload failed (${res.status})`)
     return true

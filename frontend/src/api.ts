@@ -173,7 +173,7 @@ export const DestinationsAPI = {
 // Admin API Service Functions
 export const AdminAPI = {
   // Get auth token from localStorage
-  getToken: () => localStorage.getItem('token') || '',
+  getToken: () => localStorage.getItem('jwt') || '',
 
   // List all users
   listUsers: async (params?: { search?: string }) => {
@@ -191,7 +191,7 @@ export const AdminAPI = {
   // Create admin user (Super Admin only)
   createAdminUser: async (data: { name: string; email: string; password: string }) => {
     const token = AdminAPI.getToken()
-    const response = await fetch(`${API_URLS.admin}/create-admin`, {
+    const response = await fetch(`${API_URLS.admin}/users/admin`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -206,7 +206,7 @@ export const AdminAPI = {
   // Create agent user (Super Admin only)
   createAgentUser: async (data: { name: string; email: string; password: string }) => {
     const token = AdminAPI.getToken()
-    const response = await fetch(`${API_URLS.admin}/create-agent`, {
+    const response = await fetch(`${API_URLS.admin}/users/agent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -247,7 +247,7 @@ export const AdminAPI = {
   // Get approval queue
   approvalQueue: async () => {
     const token = AdminAPI.getToken()
-    const response = await fetch(`${API_URLS.admin}/approval-queue`, {
+    const response = await fetch(`${API_URLS.admin}/properties/queue`, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
     if (!response.ok) throw new Error('Failed to fetch approval queue')
@@ -257,7 +257,7 @@ export const AdminAPI = {
   // Approve property
   approveProperty: async (id: number, data: { status: 'LIVE' | 'REJECTED' | 'SUSPENDED' }) => {
     const token = AdminAPI.getToken()
-    const response = await fetch(`${API_URLS.admin}/approve-property/${id}`, {
+    const response = await fetch(`${API_URLS.admin}/properties/${id}/approve`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -308,5 +308,60 @@ export const AdminAPI = {
   // Health check (removed as requested)
   health: async () => {
     throw new Error('Health check functionality has been removed')
+  },
+
+  // Property management for admin/super admin
+  listAllProperties: async (params?: { search?: string; status?: string }) => {
+    const token = AdminAPI.getToken()
+    const url = new URL(`${API_URLS.admin}/properties`)
+    if (params?.search) url.searchParams.set('search', params.search)
+    if (params?.status) url.searchParams.set('status', params.status)
+    
+    const response = await fetch(url.toString(), {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    if (!response.ok) throw new Error('Failed to fetch properties')
+    return response.json()
+  },
+
+  // Create property (Admin/Super Admin - no approval needed)
+  createProperty: async (data: any) => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.admin}/properties`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...data, status: 'LIVE' }), // Admin properties go live immediately
+    })
+    if (!response.ok) throw new Error('Failed to create property')
+    return response.json()
+  },
+
+  // Update property (Admin/Super Admin)
+  updateProperty: async (id: number, data: any) => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.admin}/properties/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to update property')
+    return response.json()
+  },
+
+  // Delete property (Admin/Super Admin)
+  deleteProperty: async (id: number) => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.admin}/properties/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    if (!response.ok) throw new Error('Failed to delete property')
+    return response.json()
   },
 };

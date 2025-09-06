@@ -21,6 +21,11 @@ router.post('/users/agent', requireRole('SUPER_ADMIN'), adminController.createAg
 // Property management
 router.get('/properties/queue', adminController.getPropertyApprovalQueue);
 router.put('/properties/:id/approve', adminController.approveProperty);
+// Admin property CRUD operations
+router.get('/properties', adminController.getAllProperties);
+router.post('/properties', adminController.createProperty);
+router.put('/properties/:id', adminController.updateProperty);
+router.delete('/properties/:id', adminController.deleteProperty);
 
 // Subscription plan management
 router.get('/subscription-plans', adminController.getSubscriptionPlans);

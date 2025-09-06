@@ -6,14 +6,15 @@ import { v4 as uuidv4 } from 'uuid';
 const REGION = process.env.AWS_REGION;
 const ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID;
 const SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY;
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
+const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME;
+const S3_PUBLIC_READ = process.env.S3_PUBLIC_READ;
 
 function ensureAwsEnv() {
   const missing = [];
   if (!REGION) missing.push('AWS_REGION');
   if (!ACCESS_KEY) missing.push('AWS_ACCESS_KEY_ID');
   if (!SECRET_KEY) missing.push('AWS_SECRET_ACCESS_KEY');
-  if (!BUCKET_NAME) missing.push('AWS_S3_BUCKET_NAME');
+  if (!BUCKET_NAME) missing.push('AWS_S3_BUCKET_NAME (or AWS_BUCKET_NAME)');
   if (missing.length) {
     throw new Error(`Missing AWS configuration: ${missing.join(', ')}`);
   }
@@ -39,7 +40,6 @@ export class S3Service {
       Bucket: BUCKET_NAME,
       Key: key,
       ContentType: fileType,
-      ...(S3_PUBLIC_READ ? { ACL: 'public-read' } : {}),
     });
 
     try {
@@ -93,7 +93,6 @@ export class S3Service {
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
-      ...(S3_PUBLIC_READ ? { ACL: 'public-read' } : {}),
     });
 
     try {

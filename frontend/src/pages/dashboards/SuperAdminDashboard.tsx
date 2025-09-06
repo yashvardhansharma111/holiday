@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/auth'
-import { AdminAPI } from '../../lib/api'
+import { AdminAPI } from '../../api'
+import { MediaAPI } from '../../lib/api'
 import { 
   Users, 
   Clock, 
@@ -12,12 +13,18 @@ import {
   Shield,
   ChevronRight,
   Sparkles,
-  UserPlus,
-  Edit,
+  Home,
+  Plus,
+  Edit3,
   Trash2,
+  MapPin,
+  Star,
+  Upload,
+  BarChart3,
+  UserPlus
 } from 'lucide-react'
 
-type TabKey = 'users' | 'queue' | 'analytics'
+type TabKey = 'users' | 'queue' | 'analytics' | 'properties'
 
 export default function SuperAdminDashboard() {
   const { user } = useAuth()
@@ -39,8 +46,9 @@ function SuperAdminContent() {
   
   const tabs: { key: TabKey; label: string; icon: any; badge?: number }[] = useMemo(() => ([
     { key: 'users', label: 'Users Management', icon: Users },
+    { key: 'properties', label: 'Properties', icon: Home },
     { key: 'queue', label: 'Properties Queue', icon: Clock },
-    { key: 'analytics', label: 'Analytics', icon: Sparkles },
+    { key: 'analytics', label: 'Analytics', icon: BarChart3 },
   ]), [])
 
   return (
@@ -164,6 +172,7 @@ function SuperAdminContent() {
         <div className="p-6">
           <div className="animate-fade-in">
             {active === 'users' && <UsersTab />}
+            {active === 'properties' && <PropertiesTab />}
             {active === 'queue' && <QueueTab />}
             {active === 'analytics' && <AnalyticsTab />}
           </div>
@@ -186,6 +195,582 @@ function SuperAdminContent() {
           }
         }
       `}</style>
+    </div>
+  )
+}
+
+function PropertiesTab() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [properties, setProperties] = useState<any[]>([])
+  const [search, setSearch] = useState('')
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [editingProperty, setEditingProperty] = useState<any | null>(null)
+
+  const load = async () => {
+    setLoading(true); setError(null)
+    try {
+      const resp = await AdminAPI.listAllProperties(search ? { search } : undefined)
+      // Normalize possible paginated or direct responses
+      const propertiesData = (resp as any)?.data?.data || (resp as any)?.data || resp || []
+      setProperties(Array.isArray(propertiesData) ? propertiesData : [])
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load properties')
+      setProperties([])
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const deleteProperty = async (id: number) => {
+    if (!confirm('Delete this property? This action cannot be undone.')) return
+    try {
+      await AdminAPI.deleteProperty(id)
+      await load()
+    } catch (e: any) {
+      alert(e?.message || 'Failed to delete property')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-xl p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-600 rounded-lg">
+              <Home className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Properties Management</h2>
+              <p className="text-red-600">Create, edit, and manage all properties</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Create Property
+            </button>
+            <button 
+              onClick={load} 
+              disabled={loading}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="bg-white border border-red-100 rounded-xl p-4">
+        <div className="flex items-center gap-3">
+          <Search className="w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search properties by title, city, or country..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 border-0 focus:ring-0 focus:outline-none text-gray-700"
+          />
+          <button 
+            onClick={load}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Search
+          </button>
+        </div>
+      </div>
+
+      {/* Create/Edit Form */}
+      {(showCreateForm || editingProperty) && (
+        <PropertyForm 
+          property={editingProperty}
+          onSave={async () => {
+            setShowCreateForm(false)
+            setEditingProperty(null)
+            await load()
+          }}
+          onCancel={() => {
+            setShowCreateForm(false)
+            setEditingProperty(null)
+          }}
+        />
+      )}
+
+      {/* Properties List */}
+      {loading ? (
+        <div className="space-y-4">
+          {[1,2,3].map(i => (
+            <div key={i} className="animate-pulse bg-white border border-red-100 rounded-xl p-6">
+              <div className="h-4 bg-red-100 rounded w-1/3 mb-3" />
+              <div className="h-3 bg-red-100 rounded w-2/3 mb-2" />
+              <div className="h-3 bg-red-100 rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-red-600 font-medium">{error}</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {Array.isArray(properties) && properties.length > 0 ? properties.map((property: any) => (
+            <div key={property.id} className="bg-white border border-red-100 rounded-xl shadow-sm hover:shadow-lg hover:shadow-red-100/50 transition-all duration-300 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-red-100 rounded-lg overflow-hidden">
+                    {Array.isArray(property.media) && property.media[0]?.url ? (
+                      <img src={property.media[0].url} alt={property.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Home className="w-6 h-6 text-red-600" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-lg">{property.title || 'Untitled Property'}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <MapPin className="w-3 h-3 text-gray-400" />
+                      <span className="text-sm text-gray-600">{property.city}, {property.country}</span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className="text-lg font-bold text-red-600">${property.price}/night</span>
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+                        property.status === 'LIVE' ? 'bg-green-100 text-green-700 border border-green-200' :
+                        property.status === 'PENDING_REVIEW' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
+                        'bg-gray-100 text-gray-600 border border-gray-200'
+                      }`}>
+                        {property.status === 'LIVE' && <Check className="w-3 h-3" />}
+                        {property.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setEditingProperty(property)}
+                    className="inline-flex items-center gap-2 px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    Edit
+                  </button>
+                  <button 
+                    onClick={() => deleteProperty(property.id)}
+                    className="inline-flex items-center gap-2 px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )) : (
+            <div className="text-center py-12">
+              <div className="p-4 bg-red-100 rounded-full w-16 h-16 mx-auto mb-4">
+                <Home className="w-8 h-8 text-red-600" />
+              </div>
+              <p className="text-gray-600 text-lg mb-2">No properties found</p>
+              <p className="text-gray-500">Create your first property to get started</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PropertyForm({ property, onSave, onCancel }: { property?: any; onSave: () => void; onCancel: () => void }) {
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Form fields
+  const [title, setTitle] = useState(property?.title || '')
+  const [description, setDescription] = useState(property?.description || '')
+  const [city, setCity] = useState(property?.city || '')
+  const [country, setCountry] = useState(property?.country || '')
+  const [address, setAddress] = useState(property?.address || '')
+  const [location, setLocation] = useState(property?.location || '')
+  const [price, setPrice] = useState<number | ''>(property?.price || '')
+  const [maxGuests, setMaxGuests] = useState<number | ''>(property?.maxGuests || '')
+  const [bedrooms, setBedrooms] = useState<number | ''>(property?.bedrooms || '')
+  const [bathrooms, setBathrooms] = useState<number | ''>(property?.bathrooms || '')
+  const [propertyType, setPropertyType] = useState(property?.propertyType || 'apartment')
+  const [instantBooking, setInstantBooking] = useState(property?.instantBooking || false)
+  const [images, setImages] = useState<string[]>(property?.media?.map((m: any) => m.url) || [])
+  // Flags and mapping
+  const [isFeatured, setIsFeatured] = useState<boolean>(!!property?.isFeatured)
+  const [isPopular, setIsPopular] = useState<boolean>(!!property?.isPopular)
+  const [regionId, setRegionId] = useState<number | ''>((property?.regionId as number) ?? '' as any)
+  const [destinationId, setDestinationId] = useState<number | ''>((property?.destinationId as number) ?? '' as any)
+  const [amenities, setAmenities] = useState<string[]>(property?.amenities || [])
+  const [newAmenity, setNewAmenity] = useState('')
+
+  const addAmenity = () => {
+    if (newAmenity.trim() && !amenities.includes(newAmenity.trim())) {
+      setAmenities(prev => [...prev, newAmenity.trim()])
+      setNewAmenity('')
+    }
+  }
+
+  const removeAmenity = (amenity: string) => {
+    setAmenities(prev => prev.filter(a => a !== amenity))
+  }
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setCreating(true)
+    try {
+      // Basic validation
+      if (title.trim().length < 5) throw new Error('Title must be at least 5 characters')
+      if (description.trim().length < 20) throw new Error('Description must be at least 20 characters')
+      if (location.trim().length < 5) throw new Error('Location must be at least 5 characters')
+      if (images.length < 1) throw new Error('Please upload at least one image')
+
+      const body = {
+        title,
+        description,
+        location,
+        city,
+        country,
+        address,
+        price: Number(price),
+        pricePerNight: true,
+        amenities,
+        media: images.map((url, idx) => ({ type: 'image', url, caption: '', isPrimary: idx === 0 })),
+        maxGuests: Number(maxGuests || 1),
+        bedrooms: Number(bedrooms || 1),
+        bathrooms: Number(bathrooms || 1),
+        propertyType,
+        instantBooking,
+        // optional mapping
+        ...(regionId !== '' ? { regionId: Number(regionId) } : {}),
+        ...(destinationId !== '' ? { destinationId: Number(destinationId) } : {}),
+        // flags
+        isFeatured,
+        isPopular,
+      }
+
+      if (property) {
+        await AdminAPI.updateProperty(property.id, body)
+      } else {
+        await AdminAPI.createProperty(body)
+      }
+      onSave()
+    } catch (e: any) { 
+      setError(e?.message || 'Save failed') 
+    } finally { 
+      setCreating(false) 
+    }
+  }
+
+  return (
+    <div className="bg-white border border-red-100 rounded-xl shadow-sm p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-bold text-gray-900">
+          {property ? 'Edit Property' : 'Create New Property'}
+        </h3>
+        <button 
+          onClick={onCancel}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <X className="w-5 h-5 text-gray-500" />
+        </button>
+      </div>
+
+      <form className="grid md:grid-cols-2 gap-4" onSubmit={submit}>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Property Title *</label>
+          <input 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            placeholder="Enter property title" 
+            value={title} 
+            onChange={e => setTitle(e.target.value)} 
+            required 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Location *</label>
+          <input 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            placeholder="Neighborhood or area" 
+            value={location} 
+            onChange={e => setLocation(e.target.value)} 
+            required 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">City *</label>
+          <input 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            placeholder="City" 
+            value={city} 
+            onChange={e => setCity(e.target.value)} 
+            required 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Country *</label>
+          <input 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            placeholder="Country" 
+            value={country} 
+            onChange={e => setCountry(e.target.value)} 
+            required 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Address</label>
+          <input 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            placeholder="Full address" 
+            value={address} 
+            onChange={e => setAddress(e.target.value)} 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Price per night *</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+            <input 
+              className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+              placeholder="0" 
+              type="number" 
+              value={price as any} 
+              onChange={e => setPrice(e.target.value as any)} 
+              required 
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Region ID (optional)</label>
+          <input
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
+            placeholder="Region numeric ID"
+            type="number"
+            value={regionId as any}
+            onChange={e => setRegionId((e.target.value === '' ? '' : Number(e.target.value)) as any)}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Destination ID (optional)</label>
+          <input
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
+            placeholder="Destination numeric ID"
+            type="number"
+            value={destinationId as any}
+            onChange={e => setDestinationId((e.target.value === '' ? '' : Number(e.target.value)) as any)}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Max Guests</label>
+          <input 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            placeholder="Number of guests" 
+            type="number" 
+            value={maxGuests as any} 
+            onChange={e => setMaxGuests(e.target.value as any)} 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Bedrooms</label>
+          <input 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            placeholder="Number of bedrooms" 
+            type="number" 
+            value={bedrooms as any} 
+            onChange={e => setBedrooms(e.target.value as any)} 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Bathrooms</label>
+          <input 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            placeholder="Number of bathrooms" 
+            type="number" 
+            value={bathrooms as any} 
+            onChange={e => setBathrooms(e.target.value as any)} 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Property Type</label>
+          <select 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            value={propertyType} 
+            onChange={e => setPropertyType(e.target.value)}
+          >
+            <option value="apartment">Apartment</option>
+            <option value="house">House</option>
+            <option value="villa">Villa</option>
+            <option value="cabin">Cabin</option>
+          </select>
+        </div>
+        <div className="md:col-span-2 space-y-2">
+          <label className="text-sm font-medium text-gray-700">Description *</label>
+          <textarea 
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors" 
+            rows={4} 
+            placeholder="Describe your property..." 
+            value={description} 
+            onChange={e => setDescription(e.target.value)} 
+          />
+        </div>
+        <div className="md:col-span-2">
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input 
+              type="checkbox" 
+              checked={instantBooking} 
+              onChange={e => setInstantBooking(e.target.checked)} 
+              className="w-4 h-4 text-red-600 rounded focus:ring-red-500" 
+            />
+            Enable instant booking
+          </label>
+        </div>
+        <div className="md:col-span-2 bg-red-50 border border-red-100 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+            <Star className="w-4 h-4 text-red-600" /> Featured & Popular
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={isFeatured}
+                onChange={e => setIsFeatured(e.target.checked)}
+                className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+              />
+              Featured
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={isPopular}
+                onChange={e => setIsPopular(e.target.checked)}
+                className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+              />
+              Popular
+            </label>
+          </div>
+        </div>
+        <div className="md:col-span-2 bg-red-50 border border-red-100 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <Star className="w-4 h-4 text-red-600" />
+            Amenities
+          </h4>
+          
+          {/* Add amenity input */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="Enter amenity (e.g., WiFi, Pool, Parking)"
+              value={newAmenity}
+              onChange={(e) => setNewAmenity(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
+            />
+            <button
+              type="button"
+              onClick={addAmenity}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Add
+            </button>
+          </div>
+
+          {/* Selected amenities */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-700">Selected Amenities:</p>
+            <div className="flex flex-wrap gap-2">
+              {amenities.map((amenity) => (
+                <div
+                  key={amenity}
+                  className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm"
+                >
+                  <span>{amenity}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAmenity(amenity)}
+                    className="hover:text-red-900 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {amenities.length === 0 && (
+                <p className="text-gray-500 text-sm italic">No amenities added yet</p>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="md:col-span-2">
+          <h4 className="font-medium mb-2">Images (at least 1)</h4>
+          <div className="flex flex-wrap gap-3">
+            {images.map(url => (
+              <div key={url} className="w-32">
+                <img src={url} className="w-32 h-20 object-cover rounded" />
+                <button 
+                  type="button" 
+                  onClick={() => setImages(prev => prev.filter(u => u !== url))} 
+                  className="w-full mt-1 text-xs border rounded px-2 py-1"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <label className="w-32 h-20 border-dashed border rounded flex items-center justify-center text-xs cursor-pointer">
+              <input 
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={async e => { 
+                  const f = e.target.files?.[0]; 
+                  if (!f) return; 
+                  try { 
+                    const { presignedUrl, url } = await MediaAPI.generatePresigned(f); 
+                    await MediaAPI.uploadToPresigned(presignedUrl, f); 
+                    setImages(prev => [...prev, url]) 
+                  } catch(err: any) { 
+                    alert(err?.message || 'Upload failed') 
+                  } 
+                }} 
+              />
+              <div className="flex flex-col items-center">
+                <Upload className="w-4 h-4 mb-1" />
+                + Upload
+              </div>
+            </label>
+          </div>
+        </div>
+        {error && (
+          <div className="md:col-span-2 bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-600 font-medium">{error}</p>
+          </div>
+        )}
+        <div className="md:col-span-2 pt-4 border-t border-gray-100 flex gap-3">
+          <button 
+            type="submit"
+            disabled={creating}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            {creating ? (property ? 'Updating...' : 'Creating...') : (property ? 'Update Property' : 'Create Property')}
+          </button>
+          <button 
+            type="button"
+            onClick={onCancel}
+            className="inline-flex items-center gap-2 px-6 py-3 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+      <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <p className="text-sm text-green-700">✅ Admin properties go live immediately without approval.</p>
+      </div>
     </div>
   )
 }
@@ -215,9 +800,11 @@ function UsersTab() {
     setLoading(true); setError(null)
     try {
       const resp = await AdminAPI.listUsers(search ? { search } : undefined)
-      setUsers(Array.isArray(resp) ? resp : (resp?.data || []))
+      const usersData = (resp as any)?.data?.data || (resp as any)?.data?.items || (resp as any)?.data || resp || []
+      setUsers(Array.isArray(usersData) ? usersData : [])
     } catch (e: any) {
       setError(e?.message || 'Failed to load users')
+      setUsers([])
     } finally { setLoading(false) }
   }
 
@@ -435,7 +1022,7 @@ function UsersTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {users.map((u: any) => (
+                {Array.isArray(users) && users.length > 0 ? users.map((u: any) => (
                   <tr key={u.id} className="hover:bg-red-50/50 transition-colors">
                     <td className="py-4 px-6">
                       <span className="text-sm font-mono text-gray-600">#{u.id}</span>
@@ -490,7 +1077,7 @@ function UsersTab() {
                             onClick={() => updateUser(u.id, { ownerPaid: !u.ownerPaid })} 
                             className="flex items-center gap-1 px-3 py-1 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 disabled:opacity-60 transition-all"
                           >
-                            {savingId === u.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Edit className="w-3 h-3" />}
+                            {savingId === u.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Edit3 className="w-3 h-3" />}
                             Toggle Pay
                           </button>
                         )}
@@ -499,7 +1086,7 @@ function UsersTab() {
                           onClick={() => updateUser(u.id, { isActive: !u.isActive })} 
                           className="flex items-center gap-1 px-3 py-1 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 disabled:opacity-60 transition-all"
                         >
-                          {savingId === u.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Edit className="w-3 h-3" />}
+                          {savingId === u.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Edit3 className="w-3 h-3" />}
                           {u.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                         {u.role !== 'SUPER_ADMIN' && (
@@ -515,7 +1102,11 @@ function UsersTab() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan={7} className="py-6 px-6 text-center text-gray-500">No users found</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -534,7 +1125,8 @@ function QueueTab() {
     setLoading(true); setError(null)
     try {
       const resp = await AdminAPI.approvalQueue()
-      setItems(Array.isArray(resp) ? resp : (resp?.data || []))
+      const itemsData = (resp as any)?.data?.data || (resp as any)?.data?.items || (resp as any)?.data || resp || []
+      setItems(Array.isArray(itemsData) ? itemsData : [])
     } catch (e: any) { 
       setError(e?.message || 'Failed to load') 
     } finally { 
@@ -588,7 +1180,7 @@ function QueueTab() {
         </div>
       ) : (
         <div className="space-y-4">
-          {items.map((p: any) => (
+          {(Array.isArray(items) ? items : []).map((p: any) => (
             <div key={p.id} className="bg-white rounded-xl shadow-sm border border-purple-100 p-6 hover:shadow-md transition-all">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -628,7 +1220,7 @@ function QueueTab() {
               </div>
             </div>
           ))}
-          {items.length === 0 && (
+          {(!Array.isArray(items) || items.length === 0) && (
             <div className="bg-white rounded-xl shadow-sm border border-purple-100 p-12 text-center">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-8 h-8 text-green-600" />
