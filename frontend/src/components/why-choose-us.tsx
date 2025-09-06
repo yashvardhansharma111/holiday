@@ -15,7 +15,7 @@ export default function WhyChooseUs() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-20">
         <div className="max-w-2xl">
-          <h1 className="text-6xl font-bold text-white mb-8 leading-tight">Why Choose Us</h1>
+          <h1 className="text-6xl font-bold text-white mb-8 leading-tight">Escape to a secluded cabin rental</h1>
           <p className="text-xl text-white/90 mb-12 leading-relaxed">
             Looking for an alpine retreat? Rent a cabin in one of these destinations and swap your worries for
             relaxation, stunning scenery, and fresh mountain air.

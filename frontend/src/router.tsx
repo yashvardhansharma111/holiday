@@ -12,6 +12,12 @@ import HiddenSuperAdminLogin from './pages/HiddenSuperAdminLogin'
 import { useAuth } from './context/auth'
 import PropertyDetails from './pages/PropertyDetails'
 import DestinationProperties from './pages/DestinationProperties'
+import AboutUs from './pages/AboutUs'
+import FAQ from './pages/FAQItem'
+import ContactUs from './pages/ContactUs'
+import Disclaimer from './pages/Disclaimer'
+import AdvertiseWithUs from './pages/AdvertiseWithUs'
+import VisionMission from './pages/VisionMission'
 
 function useHashLocation() {
   const [hash, setHash] = useState(window.location.hash || '#/')
@@ -34,6 +40,22 @@ export default function Router() {
     if (path === '/signup') return <SignupPage />
     if (path === '/auth/admin') return <HiddenAdminLogin />
     if (path === '/auth/super-admin') return <HiddenSuperAdminLogin />
+
+
+    // footer route
+    if (path === '/about') return <AboutUs />;
+    if (path === '/faq') return <FAQ />;
+    if (path === '/contact') return <ContactUs />;
+      if (path === '/disclaimer') return <Disclaimer />;
+    if (path === '/advertise') return <AdvertiseWithUs />;
+    if (path === '/vision') return <VisionMission />;
+
+
+
+    
+
+
+
 
     if (path === '/dashboard') {
       const role = user?.role

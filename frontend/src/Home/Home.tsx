@@ -7,6 +7,8 @@ import DestinationsShowcase from "../components/destinations-showcase"
 import Hero from './Hero';
 import Footer from "../components/footer";
 import AboutBookHolidayRental from "../components/AboutBookHolidayRental";
+import OverviewBookHolidayRental from "../components/OverviewBookHolidayRental";
+import WhyUs from "../components/WhyUs";
 
 export default function HomePage() {
   // Simple right-to-left slider for hero images
@@ -18,6 +20,8 @@ export default function HomePage() {
       <FeaturedProperties />
       <DestinationsShowcase />
       <WhyChooseUs />
+      <WhyUs/>
+      <OverviewBookHolidayRental/>
       <Destinations />
       <AboutBookHolidayRental/>
       <Footer />
