@@ -34,7 +34,7 @@ export default function Navbar() {
               Dashboard
             </a>
             {/* Desktop logout button */}
-            <button onClick={logout} className="hidden md:inline px-3 py-1 rounded bg-white/15 hover:bg-white/25">Logout</button>
+            <button onClick={logout} className="hidden md:inline-block px-3 py-1 rounded bg-white/15 hover:bg-white/25 transition-colors">Logout</button>
             {/* Mobile logout icon button */}
             <button
               onClick={logout}

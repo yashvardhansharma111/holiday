@@ -22,6 +22,7 @@ export const API_URLS = {
   bookings: `${API_BASE}/bookings`,
   reviews: `${API_BASE}/reviews`,
   admin: `${API_BASE}/admin`,
+  users: `${API_BASE}/admin/users`,
 };
 
 // API Service Functions
@@ -166,5 +167,146 @@ export const DestinationsAPI = {
       if (!response.ok) throw new Error('Failed to delete destination');
       return response.json();
     },
+  },
+};
+
+// Admin API Service Functions
+export const AdminAPI = {
+  // Get auth token from localStorage
+  getToken: () => localStorage.getItem('token') || '',
+
+  // List all users
+  listUsers: async (params?: { search?: string }) => {
+    const token = AdminAPI.getToken()
+    const url = new URL(API_URLS.users)
+    if (params?.search) url.searchParams.set('search', params.search)
+    
+    const response = await fetch(url.toString(), {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    if (!response.ok) throw new Error('Failed to fetch users')
+    return response.json()
+  },
+
+  // Create admin user (Super Admin only)
+  createAdminUser: async (data: { name: string; email: string; password: string }) => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.admin}/create-admin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to create admin user')
+    return response.json()
+  },
+
+  // Create agent user (Super Admin only)
+  createAgentUser: async (data: { name: string; email: string; password: string }) => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.admin}/create-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to create agent user')
+    return response.json()
+  },
+
+  // Update user (Super Admin only)
+  updateUser: async (id: number, data: any) => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.users}/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to update user')
+    return response.json()
+  },
+
+  // Delete user (Super Admin only)
+  deleteUser: async (id: number) => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.users}/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    if (!response.ok) throw new Error('Failed to delete user')
+    return response.json()
+  },
+
+  // Get approval queue
+  approvalQueue: async () => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.admin}/approval-queue`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    if (!response.ok) throw new Error('Failed to fetch approval queue')
+    return response.json()
+  },
+
+  // Approve property
+  approveProperty: async (id: number, data: { status: 'LIVE' | 'REJECTED' | 'SUSPENDED' }) => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.admin}/approve-property/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to approve property')
+    return response.json()
+  },
+
+  // Get analytics
+  analytics: async () => {
+    const token = AdminAPI.getToken()
+    const response = await fetch(`${API_URLS.admin}/analytics`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    if (!response.ok) throw new Error('Failed to fetch analytics')
+    return response.json()
+  },
+
+  // Plans management (removed as requested)
+  listPlans: async () => {
+    throw new Error('Plans functionality has been removed')
+  },
+
+  createPlan: async () => {
+    throw new Error('Plans functionality has been removed')
+  },
+
+  deletePlan: async () => {
+    throw new Error('Plans functionality has been removed')
+  },
+
+  // Subscriptions management (removed as requested)
+  grantUserSubscription: async () => {
+    throw new Error('Subscriptions functionality has been removed')
+  },
+
+  cancelUserSubscription: async () => {
+    throw new Error('Subscriptions functionality has been removed')
+  },
+
+  setSubscriptionPaidStatus: async () => {
+    throw new Error('Subscriptions functionality has been removed')
+  },
+
+  // Health check (removed as requested)
+  health: async () => {
+    throw new Error('Health check functionality has been removed')
   },
 };
