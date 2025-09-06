@@ -54,10 +54,10 @@ const Footer: React.FC = () => {
 
   // Bottom links
   const bottomLinks: FooterLink[] = [
-    { name: 'Privacy Policy', path: '/privacy' },
-    { name: 'Terms of Service', path: '/terms' },
-    { name: 'Cookie Policy', path: '/cookies' },
-    { name: 'Refund Policy', path: '/refund' },
+    { name: 'Privacy Policy', path: '#/privacy' },
+    { name: 'Terms of Service', path: '#/terms' },
+ 
+    { name: 'Refund Policy', path: '#/refund' },
   ];
 
   return (

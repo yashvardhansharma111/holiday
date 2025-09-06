@@ -18,6 +18,9 @@ import ContactUs from './pages/ContactUs'
 import Disclaimer from './pages/Disclaimer'
 import AdvertiseWithUs from './pages/AdvertiseWithUs'
 import VisionMission from './pages/VisionMission'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import TermsConditions from './pages/TermsConditions'
+import RefundPolicy from './pages/RefundPolicy'
 
 function useHashLocation() {
   const [hash, setHash] = useState(window.location.hash || '#/')
@@ -49,6 +52,12 @@ export default function Router() {
       if (path === '/disclaimer') return <Disclaimer />;
     if (path === '/advertise') return <AdvertiseWithUs />;
     if (path === '/vision') return <VisionMission />;
+    if (path === '/privacy') return <PrivacyPolicy />;
+    if (path === '/terms') return <TermsConditions />;
+    if (path === '/refund') return <RefundPolicy />;
+
+
+
 
 
 
