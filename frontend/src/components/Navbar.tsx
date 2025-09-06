@@ -5,6 +5,7 @@ export default function Navbar() {
   const { user, logout } = useAuth()
 
   return (
+<<<<<<< HEAD
     <nav className="fixed top-0 left-0 right-0 z-50 w-full h-16 px-6 flex items-center justify-between text-white bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 backdrop-blur-md supports-[backdrop-filter]:bg-gray-900/90 shadow-xl border-b border-white/10">
       
     
@@ -33,6 +34,25 @@ export default function Navbar() {
           Host with us
         </a>
         
+=======
+    <nav className="fixed top-0 left-0 right-0 z-50 w-full h-14 px-6 flex items-center justify-between text-white bg-gray-900/95 backdrop-blur supports-[backdrop-filter]:bg-gray-900/80 shadow">
+      {/* Brand */}
+      <div className="flex items-center gap-2">
+        <span className="text-2xl font-bold">Book</span>
+        <span className="text-xl opacity-90">Holiday Rentals</span>
+      </div>
+
+      {/* Links */}
+      <div className="flex items-center gap-6">
+        <a className="hidden md:inline hover:underline" href="#/">Home</a>
+        <a className="hidden md:inline hover:underline" href="#/property-types">Property Types</a>
+        <a className="hidden md:inline hover:underline" href="#/deals">Deals & Offers</a>
+        <a className="hidden md:inline hover:underline" href="#/about">About Us</a>
+        <a className="hidden md:inline hover:underline" href="#/list-property">List Your Property</a>
+        <a className="hidden md:inline hover:underline" href="#/host">Host with us</a>
+
+        {/* Auth conditional links */}
+>>>>>>> origin/main
         {!user && (
           <>
             <a className="px-4 py-2 rounded-lg font-medium text-gray-200 hover:text-white hover:bg-white/10 transition-all duration-200" href="#/login">
@@ -61,6 +81,7 @@ export default function Navbar() {
               </svg>
               Dashboard
             </a>
+<<<<<<< HEAD
             
             {/* Mobile dashboard link */}
             <a
@@ -92,12 +113,35 @@ export default function Navbar() {
             </button>
             
             {/* Mobile logout icon button */}
+=======
+
+            {/* ✅ Desktop logout button (now visible) */}
+            <button
+              onClick={logout}
+              className="px-3 py-1 rounded bg-white/15 hover:bg-white/25 transition-colors"
+            >
+              Logout
+            </button>
+
+            {/* Mobile logout icon */}
+>>>>>>> origin/main
             <button
               onClick={logout}
               aria-label="Logout"
               className="md:hidden p-3 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-red-200 transition-all duration-200"
             >
+<<<<<<< HEAD
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+=======
+              <svg xmlns="http://www.w3.org/2000/svg" 
+                   viewBox="0 0 24 24" 
+                   fill="none" 
+                   stroke="currentColor" 
+                   strokeWidth="2" 
+                   strokeLinecap="round" 
+                   strokeLinejoin="round" 
+                   className="w-5 h-5">
+>>>>>>> origin/main
                 <path d="M12 2v10" />
                 <path d="M5.5 5.5a8 8 0 1 0 13 0" />
               </svg>

@@ -30,6 +30,9 @@ export const createPropertySchema = z.object({
   headerRibbonPrice: z.number().min(0).optional(),
   nearbyAttractions: z.array(z.string()).optional(),
   videos: z.array(z.string().url()).optional(),
+  // Optional mapping to region/destination
+  regionId: z.number().int().optional(),
+  destinationId: z.number().int().optional(),
   // Seasonal pricing ranges
   pricingRanges: z.array(z.object({
     category: z.string().optional(),

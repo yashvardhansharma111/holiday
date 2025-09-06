@@ -57,10 +57,10 @@ export const listPublic = async (req, res) => {
     if (regionId) where.regionId = parseInt(regionId);
     if (destinationId) where.destinationId = parseInt(destinationId);
     if (regionSlug) {
-      where.region = { slug: regionSlug };
+      where.region = { is: { slug: String(regionSlug) } };
     }
     if (destinationSlug) {
-      where.destination = { slug: destinationSlug };
+      where.destination = { is: { slug: String(destinationSlug) } };
     }
     
     // Price filters
@@ -173,7 +173,9 @@ export const listPublic = async (req, res) => {
           select: {
             id: true,
             rate: true,
-            date: true
+            startDate: true,
+            endDate: true,
+            minStay: true
           }
         },
         reviews: {
@@ -310,6 +312,9 @@ export const createByAgentOrOwner = async (req, res) => {
       headerRibbonPrice: data.headerRibbonPrice ?? null,
       nearbyAttractions: data.nearbyAttractions ?? null,
       videos: data.videos ?? [],
+      // optional mapping
+      ...(data.regionId ? { regionId: Number(data.regionId) } : {}),
+      ...(data.destinationId ? { destinationId: Number(data.destinationId) } : {}),
     };
 
     const created = await prisma.property.create({ data: propertyData });
@@ -471,6 +476,13 @@ export const updateProperty = async (req, res) => {
     const updateData = { ...data };
     if (data.amenities !== undefined) {
       updateData.amenities = Array.isArray(data.amenities) ? data.amenities : data.amenities || {};
+    }
+    // Optional mapping updates
+    if (data.regionId !== undefined) {
+      updateData.regionId = data.regionId == null ? null : Number(data.regionId);
+    }
+    if (data.destinationId !== undefined) {
+      updateData.destinationId = data.destinationId == null ? null : Number(data.destinationId);
     }
 
     // If pricingRanges provided, replace existing ones atomically
@@ -906,7 +918,7 @@ const updateFeatureFlags = async (req, res) => {
     });
 
     return res.status(HTTP_STATUS.OK).json(
-      successResponse('Feature flags updated successfully', updatedProperty)
+      successResponse(updatedProperty, 'Feature flags updated successfully')
     );
 
   } catch (error) {
@@ -940,7 +952,7 @@ const getFeaturedProperties = async (req, res) => {
     });
 
     return res.status(HTTP_STATUS.OK).json(
-      successResponse('Featured properties retrieved successfully', properties)
+      successResponse(properties, 'Featured properties retrieved successfully')
     );
 
   } catch (error) {
@@ -974,7 +986,7 @@ const getPopularProperties = async (req, res) => {
     });
 
     return res.status(HTTP_STATUS.OK).json(
-      successResponse('Popular properties retrieved successfully', properties)
+      successResponse(properties, 'Popular properties retrieved successfully')
     );
 
   } catch (error) {

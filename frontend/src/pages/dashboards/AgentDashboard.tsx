@@ -41,7 +41,9 @@ export default function AgentDashboard() {
     setLoading(true); setError(null)
     try {
       const list = await PropertiesAPI.myProperties()
-      setProperties(Array.isArray(list) ? list : (list?.items || []))
+      // Normalize paginated or direct array responses
+      const arr = (list as any)?.data?.data || (list as any)?.data?.items || (list as any)?.data || (list as any)?.items || list || []
+      setProperties(Array.isArray(arr) ? arr : [])
     } catch (e: any) { setError(e?.message || 'Failed to load properties') }
     finally { setLoading(false) }
   }
@@ -654,10 +656,23 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
   const [initialRating, setInitialRating] = useState<number | ''>('' as any)
   const [headerRibbonText, setHeaderRibbonText] = useState('')
   const [headerRibbonPrice, setHeaderRibbonPrice] = useState<number | ''>('' as any)
-  const amenityOptions = ['Bedroom - Wifi', 'Linens are provided', '1 Queen Bed', 'Sleeps:10', 'Twin/single - Child -Baby', 'Air Conditioning']
+  const [regionId, setRegionId] = useState<number | ''>('' as any)
+  const [destinationId, setDestinationId] = useState<number | ''>('' as any)
   const [amenitiesSel, setAmenitiesSel] = useState<string[]>([])
+  const [newAmenity, setNewAmenity] = useState('')
   const [nearbyAttractions, setNearbyAttractions] = useState<string[]>([])
   const [newAttraction, setNewAttraction] = useState('')
+
+  const addAmenity = () => {
+    if (newAmenity.trim() && !amenitiesSel.includes(newAmenity.trim())) {
+      setAmenitiesSel(prev => [...prev, newAmenity.trim()])
+      setNewAmenity('')
+    }
+  }
+
+  const removeAmenity = (amenity: string) => {
+    setAmenitiesSel(prev => prev.filter(a => a !== amenity))
+  }
   const [videos, setVideos] = useState<string[]>([])
   const [newVideo, setNewVideo] = useState('')
   // Seasonal pricing
@@ -706,10 +721,14 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
         instantBooking,
         initialRating: initialRating === '' ? undefined : Number(initialRating),
         headerRibbonText: headerRibbonText || undefined,
-        headerRibbonPrice: headerRibbonPrice === '' ? undefined : Number(headerRibbonPrice),
+        headerRibbonPrice: headerRibbonPrice === ''
+          ? undefined
+          : (Number(headerRibbonPrice) < 0 ? undefined : Number(headerRibbonPrice)),
         nearbyAttractions: nearbyAttractions.length ? nearbyAttractions : undefined,
         videos: videos.length ? videos : undefined,
         pricingRanges: pr.length ? pr : undefined,
+        ...(regionId !== '' ? { regionId: Number(regionId) } : {}),
+        ...(destinationId !== '' ? { destinationId: Number(destinationId) } : {}),
       }
       await PropertiesAPI.create(body)
       onCreated()
@@ -918,20 +937,46 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
           <div className="space-y-3">
             <h4 className="text-lg font-semibold text-gray-900">Amenities</h4>
             <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {amenityOptions.map(opt => (
-                  <label key={opt} className="inline-flex items-center gap-2 text-sm">
-                    <input 
-                      type="checkbox" 
-                      checked={amenitiesSel.includes(opt)} 
-                      onChange={(e)=>{
-                        setAmenitiesSel(prev => e.target.checked ? [...prev, opt] : prev.filter(x=>x!==opt))
-                      }}
-                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
-                    />
-                    <span className="text-gray-700">{opt}</span>
-                  </label>
-                ))}
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  placeholder="Enter amenity (e.g., WiFi, Pool, Parking)"
+                  value={newAmenity}
+                  onChange={(e) => setNewAmenity(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={addAmenity}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Selected Amenities:</p>
+                <div className="flex flex-wrap gap-2">
+                  {amenitiesSel.map((amenity) => (
+                    <div
+                      key={amenity}
+                      className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
+                    >
+                      <span>{amenity}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeAmenity(amenity)}
+                        className="hover:text-blue-900 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {amenitiesSel.length === 0 && (
+                    <p className="text-gray-500 text-sm italic">No amenities added yet</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

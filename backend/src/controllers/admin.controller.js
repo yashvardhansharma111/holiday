@@ -555,25 +555,10 @@ export const getPropertyApprovalQueue = async (req, res) => {
     const properties = await prisma.property.findMany({
       where,
       include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
-        },
-        agent: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
-        },
-        cityRef: true
+        owner: { select: { id: true, name: true, email: true } },
+        agent: { select: { id: true, name: true, email: true } }
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit)
     });
@@ -861,6 +846,286 @@ export const getUserSubscription = async (req, res) => {
   } catch (error) {
     return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
       errorResponse('Failed to get user subscription', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Get all properties for admin management
+export const getAllProperties = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search, status } = req.query;
+    
+    // Build where clause
+    const where = {};
+    
+    if (status) {
+      where.status = status;
+    }
+    
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+        { country: { contains: search, mode: 'insensitive' } },
+        { location: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    
+    // Get total count for pagination
+    const total = await prisma.property.count({ where });
+    
+    // Get properties with pagination
+    const properties = await prisma.property.findMany({
+      where,
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        agent: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit)
+    });
+    
+    const paginatedResults = paginateResults(
+      properties, 
+      Number(page), 
+      Number(limit), 
+      total
+    );
+    
+    res.json(successResponse(paginatedResults, 'Properties retrieved successfully'));
+  } catch (error) {
+    console.error('Get all properties error:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to retrieve properties', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Create property (admin)
+export const createProperty = async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      location,
+      city,
+      country,
+      address,
+      price,
+      pricePerNight,
+      amenities,
+      media,
+      maxGuests,
+      bedrooms,
+      bathrooms,
+      propertyType,
+      instantBooking
+    } = req.body;
+
+    // Basic validation
+    if (!title || title.trim().length < 5) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('Title must be at least 5 characters', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    if (!description || description.trim().length < 20) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('Description must be at least 20 characters', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    if (!location || location.trim().length < 5) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('Location must be at least 5 characters', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    if (!media || media.length < 1) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('At least one image is required', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    // Create property with admin as owner
+    const property = await prisma.property.create({
+      data: {
+        title: title.trim(),
+        description: description.trim(),
+        location: location.trim(),
+        city: city?.trim() || '',
+        country: country?.trim() || '',
+        address: address?.trim() || '',
+        price: Number(price),
+        pricePerNight: Boolean(pricePerNight),
+        amenities: amenities || [],
+        maxGuests: Number(maxGuests) || 1,
+        bedrooms: Number(bedrooms) || 1,
+        bathrooms: Number(bathrooms) || 1,
+        propertyType: propertyType || 'apartment',
+        instantBooking: Boolean(instantBooking),
+        status: 'LIVE', // Admin properties go live immediately
+        ownerId: req.user.id, // Admin becomes the owner
+        adminId: req.user.id,
+        // media stored as JSON array per schema
+        media: Array.isArray(media) ? media : [],
+        // optional region/destination mapping
+        ...(req.body.regionId ? { regionId: Number(req.body.regionId) } : {}),
+        ...(req.body.destinationId ? { destinationId: Number(req.body.destinationId) } : {})
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.status(HTTP_STATUS.CREATED).json(
+      successResponse(property, 'Property created successfully', HTTP_STATUS.CREATED)
+    );
+  } catch (error) {
+    console.error('Create property error:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to create property', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Update property (admin)
+export const updateProperty = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      location,
+      city,
+      country,
+      address,
+      price,
+      pricePerNight,
+      amenities,
+      media,
+      maxGuests,
+      bedrooms,
+      bathrooms,
+      propertyType,
+      instantBooking
+    } = req.body;
+
+    // Check if property exists
+    const existingProperty = await prisma.property.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!existingProperty) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json(
+        errorResponse('Property not found', HTTP_STATUS.NOT_FOUND)
+      );
+    }
+
+    // Update property
+    const updatedProperty = await prisma.property.update({
+      where: { id: Number(id) },
+      data: {
+        title: title?.trim(),
+        description: description?.trim(),
+        location: location?.trim(),
+        city: city?.trim(),
+        country: country?.trim(),
+        address: address?.trim(),
+        price: price ? Number(price) : undefined,
+        pricePerNight: pricePerNight !== undefined ? Boolean(pricePerNight) : undefined,
+        amenities: amenities,
+        maxGuests: maxGuests ? Number(maxGuests) : undefined,
+        bedrooms: bedrooms ? Number(bedrooms) : undefined,
+        bathrooms: bathrooms ? Number(bathrooms) : undefined,
+        propertyType: propertyType,
+        instantBooking: instantBooking !== undefined ? Boolean(instantBooking) : undefined,
+        updatedAt: new Date(),
+        // Replace media JSON if provided
+        ...(Array.isArray(media) ? { media } : {}),
+        // optional region/destination mapping updates
+        ...(req.body.regionId !== undefined ? { regionId: req.body.regionId == null ? null : Number(req.body.regionId) } : {}),
+        ...(req.body.destinationId !== undefined ? { destinationId: req.body.destinationId == null ? null : Number(req.body.destinationId) } : {})
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.json(successResponse(updatedProperty, 'Property updated successfully'));
+  } catch (error) {
+    console.error('Update property error:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to update property', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// Delete property (admin)
+export const deleteProperty = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if property exists
+    const existingProperty = await prisma.property.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!existingProperty) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json(
+        errorResponse('Property not found', HTTP_STATUS.NOT_FOUND)
+      );
+    }
+
+    // Check for active bookings
+    const activeBookings = await prisma.booking.count({
+      where: {
+        propertyId: Number(id),
+        status: { in: ['PENDING', 'CONFIRMED'] }
+      }
+    });
+
+    if (activeBookings > 0) {
+      return res.status(HTTP_STATUS.CONFLICT).json(
+        errorResponse('Cannot delete property with active bookings', HTTP_STATUS.CONFLICT)
+      );
+    }
+
+    // Delete property (cascade will handle media and other relations)
+    await prisma.property.delete({
+      where: { id: Number(id) }
+    });
+
+    res.json(successResponse(null, 'Property deleted successfully'));
+  } catch (error) {
+    console.error('Delete property error:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to delete property', HTTP_STATUS.INTERNAL_SERVER_ERROR)
     );
   }
 };

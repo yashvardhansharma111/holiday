@@ -466,10 +466,23 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
   const [initialRating, setInitialRating] = useState<number | ''>('' as any)
   const [headerRibbonText, setHeaderRibbonText] = useState('')
   const [headerRibbonPrice, setHeaderRibbonPrice] = useState<number | ''>('' as any)
-  const amenityOptions = ['Bedroom - Wifi', 'Linens are provided', '1 Queen Bed', 'Sleeps:10', 'Twin/single - Child -Baby', 'Air Conditioning']
+  const [regionId, setRegionId] = useState<number | ''>('' as any)
+  const [destinationId, setDestinationId] = useState<number | ''>('' as any)
   const [amenitiesSel, setAmenitiesSel] = useState<string[]>([])
+  const [newAmenity, setNewAmenity] = useState('')
   const [nearbyAttractions, setNearbyAttractions] = useState<string[]>([])
   const [newAttraction, setNewAttraction] = useState('')
+
+  const addAmenity = () => {
+    if (newAmenity.trim() && !amenitiesSel.includes(newAmenity.trim())) {
+      setAmenitiesSel(prev => [...prev, newAmenity.trim()])
+      setNewAmenity('')
+    }
+  }
+
+  const removeAmenity = (amenity: string) => {
+    setAmenitiesSel(prev => prev.filter(a => a !== amenity))
+  }
   const [videos, setVideos] = useState<string[]>([])
   const [newVideo, setNewVideo] = useState('')
   // Seasonal pricing
@@ -519,10 +532,14 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
         instantBooking,
         initialRating: initialRating === '' ? undefined : Number(initialRating),
         headerRibbonText: headerRibbonText || undefined,
-        headerRibbonPrice: headerRibbonPrice === '' ? undefined : Number(headerRibbonPrice),
+        headerRibbonPrice: headerRibbonPrice === ''
+          ? undefined
+          : (Number(headerRibbonPrice) < 0 ? undefined : Number(headerRibbonPrice)),
         nearbyAttractions: nearbyAttractions.length ? nearbyAttractions : undefined,
         videos: videos.length ? videos : undefined,
         pricingRanges: pr.length ? pr : undefined,
+        ...(regionId !== '' ? { regionId: Number(regionId) } : {}),
+        ...(destinationId !== '' ? { destinationId: Number(destinationId) } : {}),
       }
       await PropertiesAPI.create(body)
       onCreated()
@@ -608,8 +625,28 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
             <label className="text-sm font-medium text-gray-700">Header Ribbon Price</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
-              <input className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors" placeholder="Special price" type="number" value={headerRibbonPrice as any} onChange={e=>setHeaderRibbonPrice(e.target.value as any)} />
+              <input className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors" placeholder="Special price" type="number" min={0} value={headerRibbonPrice as any} onChange={e=>setHeaderRibbonPrice(e.target.value as any)} />
             </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Region ID (optional)</label>
+            <input
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+              placeholder="Region numeric ID"
+              type="number"
+              value={regionId as any}
+              onChange={e => setRegionId((e.target.value === '' ? '' : Number(e.target.value)) as any)}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Destination ID (optional)</label>
+            <input
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+              placeholder="Destination numeric ID"
+              type="number"
+              value={destinationId as any}
+              onChange={e => setDestinationId((e.target.value === '' ? '' : Number(e.target.value)) as any)}
+            />
           </div>
           <div className="md:col-span-2 space-y-2">
             <label className="text-sm font-medium text-gray-700">Description *</label>
@@ -621,20 +658,50 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
               Enable instant booking
             </label>
           </div>
-          <div className="md:col-span-2 bg-purple-50 border border-purple-100 rounded-lg p-4">
+          <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
             <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
               <Star className="w-4 h-4 text-purple-600" />
               Amenities
             </h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {amenityOptions.map(opt => (
-                <label key={opt} className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-                  <input type="checkbox" checked={amenitiesSel.includes(opt)} onChange={(e)=>{
-                    setAmenitiesSel(prev => e.target.checked ? [...prev, opt] : prev.filter(x=>x!==opt))
-                  }} className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" />
-                  {opt}
-                </label>
-              ))}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                placeholder="Enter amenity (e.g., WiFi, Pool, Parking)"
+                value={newAmenity}
+                onChange={(e) => setNewAmenity(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+              />
+              <button
+                type="button"
+                onClick={addAmenity}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Add
+              </button>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Selected Amenities:</p>
+              <div className="flex flex-wrap gap-2">
+                {amenitiesSel.map((amenity) => (
+                  <div
+                    key={amenity}
+                    className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm"
+                  >
+                    <span>{amenity}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAmenity(amenity)}
+                      className="hover:text-purple-900 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                {amenitiesSel.length === 0 && (
+                  <p className="text-gray-500 text-sm italic">No amenities added yet</p>
+                )}
+              </div>
             </div>
           </div>
         <div className="md:col-span-2">
