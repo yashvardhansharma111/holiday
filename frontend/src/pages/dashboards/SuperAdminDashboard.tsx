@@ -1243,7 +1243,9 @@ function AnalyticsTab() {
   const load = async () => {
     setLoading(true); setError(null)
     try { 
-      setData(await AdminAPI.analytics()) 
+      const resp = await AdminAPI.analytics()
+      const payload = (resp as any)?.data || resp
+      setData(payload) 
     } catch (e: any) { 
       setError(e?.message || 'Failed to load analytics') 
     } finally { 
@@ -1287,13 +1289,85 @@ function AnalyticsTab() {
             </div>
             <p className="text-red-600 font-medium">{error}</p>
           </div>
-        ) : (
-          <div className="overflow-auto">
-            <pre className="text-xs bg-gray-50 p-4 rounded-lg max-h-[500px] overflow-auto">
-              {JSON.stringify(data, null, 2)}
-            </pre>
+        ) : data ? (
+          <div className="space-y-8">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 border border-purple-100 rounded-lg bg-gradient-to-br from-purple-50 to-indigo-50">
+                <p className="text-sm text-gray-500">Total Users</p>
+                <p className="text-2xl font-bold text-gray-900">{data.users?.total ?? 0}</p>
+                <p className="text-xs text-gray-500">New: {data.users?.new ?? 0}</p>
+              </div>
+              <div className="p-4 border border-purple-100 rounded-lg bg-gradient-to-br from-emerald-50 to-green-50">
+                <p className="text-sm text-gray-500">Properties</p>
+                <p className="text-2xl font-bold text-gray-900">{data.properties?.total ?? 0}</p>
+                <p className="text-xs text-gray-500">Live: {data.properties?.live ?? 0} • Pending: {data.properties?.pending ?? 0}</p>
+              </div>
+              <div className="p-4 border border-purple-100 rounded-lg bg-gradient-to-br from-amber-50 to-yellow-50">
+                <p className="text-sm text-gray-500">Bookings</p>
+                <p className="text-2xl font-bold text-gray-900">{data.bookings?.total ?? 0}</p>
+                <p className="text-xs text-gray-500">Confirmed: {data.bookings?.confirmed ?? 0}</p>
+              </div>
+              <div className="p-4 border border-purple-100 rounded-lg bg-gradient-to-br from-rose-50 to-red-50">
+                <p className="text-sm text-gray-500">Revenue</p>
+                <p className="text-2xl font-bold text-gray-900">${data.revenue?.total ?? 0}</p>
+                <p className="text-xs text-gray-500">Period: ${data.revenue?.period ?? 0}</p>
+              </div>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Users by role bar chart */}
+              <div className="p-4 border border-purple-100 rounded-lg">
+                <h4 className="font-semibold text-gray-900 mb-3">Users by Role</h4>
+                <div className="space-y-3">
+                  {(data.users?.byRole || []).map((r: any) => {
+                    const count = r?._count?.role || 0;
+                    const max = Math.max(1, ...(data.users?.byRole || []).map((x:any)=>x?._count?.role||0));
+                    const pct = Math.round((count / max) * 100);
+                    return (
+                      <div key={r.role} className="flex items-center gap-3">
+                        <div className="w-28 text-sm text-gray-600">{r.role}</div>
+                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-purple-500" style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className="w-10 text-right text-sm text-gray-700">{count}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Properties status chart */}
+              <div className="p-4 border border-purple-100 rounded-lg">
+                <h4 className="font-semibold text-gray-900 mb-3">Properties Overview</h4>
+                {(() => {
+                  const live = data.properties?.live || 0;
+                  const pending = data.properties?.pending || 0;
+                  const total = Math.max(1, data.properties?.total || (live + pending));
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-28 text-sm text-gray-600">Live</div>
+                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500" style={{ width: `${Math.round((live/total)*100)}%` }} />
+                        </div>
+                        <div className="w-10 text-right text-sm text-gray-700">{live}</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-28 text-sm text-gray-600">Pending</div>
+                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-500" style={{ width: `${Math.round((pending/total)*100)}%` }} />
+                        </div>
+                        <div className="w-10 text-right text-sm text-gray-700">{pending}</div>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

@@ -64,7 +64,7 @@ export default function FeaturedProperties() {
 
     return (
       <div className="group cursor-pointer">
-        <div className="relative overflow-hidden rounded-2xl mb-4 aspect-[4/3]">
+        <div className="relative overflow-hidden rounded-xl mb-3 aspect-[16/9]">
           <img
             src={primaryImage}
             alt={property.title}
@@ -81,8 +81,8 @@ export default function FeaturedProperties() {
           )}
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-4 text-sm text-gray-600">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-3 text-xs text-gray-600">
             <div className="flex items-center gap-1">
               <Users className="w-3 h-3" />
               <span>{property.maxGuests} guests</span>
@@ -93,20 +93,20 @@ export default function FeaturedProperties() {
             </div>
           </div>
 
-          <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-purple-600 transition-colors">
+          <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-purple-600 transition-colors text-base">
             {property.title}
           </h3>
 
-          <div className="flex items-center gap-1 text-gray-600 text-sm">
+          <div className="flex items-center gap-1 text-gray-600 text-xs">
             <MapPin className="w-3 h-3" />
             <span>{property.city}, {property.country}</span>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-between pt-1.5">
             <div className="flex items-center gap-1">
               <Star className="w-4 h-4 text-yellow-400 fill-current" />
-              <span className="text-sm font-medium">{averageRating}</span>
-              <span className="text-sm text-gray-500">({property.reviews?.length || 0})</span>
+              <span className="text-xs font-medium">{averageRating}</span>
+              <span className="text-xs text-gray-500">({property.reviews?.length || 0})</span>
             </div>
 
             <div className="text-right">
@@ -144,7 +144,7 @@ export default function FeaturedProperties() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1,2,3].map(i => (
             <div key={i} className="animate-pulse">
               <div className="bg-gray-200 rounded-2xl aspect-[4/3] mb-4" />
@@ -162,7 +162,7 @@ export default function FeaturedProperties() {
         </div>
       ) : (Array.isArray(properties) && properties.length > 0) ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             {(Array.isArray(properties) ? properties : []).map((property) => (
               <PropertyCard key={property.id} property={property} type={type} />
             ))}
