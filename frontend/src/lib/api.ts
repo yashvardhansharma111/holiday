@@ -1,4 +1,4 @@
-export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
+export const API_BASE = import.meta.env.VITE_API_BASE || 'https://72aa1f37bd0d.ngrok-free.app/api'
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('jwt')
