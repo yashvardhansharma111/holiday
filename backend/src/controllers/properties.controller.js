@@ -42,7 +42,7 @@ export const listPublic = async (req, res) => {
 
     // Build where clause
     const where = { status: 'LIVE' };
-    
+
     // Search functionality
     if (search) {
       const searchQuery = buildSearchQuery(search, ['title', 'description', 'location', 'city']);
@@ -263,6 +263,71 @@ export const getPopularCities = async (req, res) => {
   }
 };
 
+// NEW: Popular Rentals grouped by City (Public)
+// Route: GET /api/properties/cities/popular-rentals?citiesLimit=6&propsPerCity=6
+export const getPopularRentalsByCity = async (req, res) => {
+  try {
+    const citiesLimit = Number(req.query.citiesLimit ?? 6);
+    const propsPerCity = Number(req.query.propsPerCity ?? 6);
+
+    // 1) Find top cities by count of LIVE properties
+    const grouped = await prisma.property.groupBy({
+      by: ['cityId'],
+      where: { status: 'LIVE' },
+      _count: { cityId: true },
+      orderBy: { _count: { cityId: 'desc' } },
+      take: Math.max(1, Math.min(24, citiesLimit)),
+    });
+
+    if (grouped.length === 0) {
+      return res.json(successResponse([], 'No popular city rentals found'));
+    }
+
+    const cityIds = grouped.map(g => g.cityId);
+    const countMap = new Map(grouped.map(g => [g.cityId, g._count.cityId]));
+
+    // 2) Fetch city metadata
+    const cities = await prisma.city.findMany({
+      where: { id: { in: cityIds } },
+      select: { id: true, name: true, country: true, image: true, description: true }
+    });
+
+    // 3) For each city, fetch sample LIVE properties
+    const results = [];
+    for (const cityId of cityIds) {
+      const city = cities.find(c => c.id === cityId);
+      if (!city) continue;
+      const props = await prisma.property.findMany({
+        where: { status: 'LIVE', cityId },
+        select: {
+          id: true,
+          propertyId: true,
+          title: true,
+          price: true,
+          media: true,
+          isFeatured: true,
+          isPopular: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: Math.max(1, Math.min(24, propsPerCity)),
+      });
+      results.push({
+        city: { id: city.id, name: city.name, country: city.country, image: city.image, description: city.description },
+        propertyCount: countMap.get(cityId) || 0,
+        properties: props,
+      });
+    }
+
+    return res.json(successResponse(results, 'Popular rentals by city retrieved successfully'));
+  } catch (error) {
+    console.error('getPopularRentalsByCity error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to retrieve popular rentals by city', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
 // AGENT/OWNER: Create property
 export const createByAgentOrOwner = async (req, res) => {
   try {
@@ -359,9 +424,11 @@ export const createByAgentOrOwner = async (req, res) => {
 export const getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const property = await prisma.property.findUnique({
-      where: { id: Number(id) },
+    const numeric = Number(id)
+
+    // Try by primary id; if not found, try by display propertyId
+    let property = await prisma.property.findUnique({
+      where: { id: Number(numeric) },
       include: {
         owner: {
           select: {
@@ -402,6 +469,24 @@ export const getPropertyById = async (req, res) => {
         }
       }
     });
+
+    if (!property && Number.isFinite(numeric)) {
+      property = await prisma.property.findFirst({
+        where: { propertyId: numeric },
+        include: {
+          owner: { select: { id: true, name: true, avatar: true } },
+          agent: { select: { id: true, name: true, avatar: true } },
+          cityRef: true,
+          reviews: {
+            include: { user: { select: { id: true, name: true, avatar: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+          },
+          _count: { select: { reviews: true, bookings: true } },
+          rates: { orderBy: { startDate: 'asc' } },
+        }
+      })
+    }
 
     if (!property) {
       return res.status(HTTP_STATUS.NOT_FOUND).json(

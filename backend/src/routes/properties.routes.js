@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Public routes
 router.get('/', propertyController.listPublic);
+router.get('/cities/popular-rentals', propertyController.getPopularRentalsByCity);
 router.get('/cities', propertyController.getPopularCities);
 router.get('/featured', propertyController.getFeaturedProperties);
 router.get('/popular', propertyController.getPopularProperties);

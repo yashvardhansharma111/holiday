@@ -8,6 +8,8 @@ export default function PropertyDetails() {
   const [error, setError] = useState<string | null>(null)
   const [bookingLoading, setBookingLoading] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [moreCityProps, setMoreCityProps] = useState<any[]>([])
+  const [moreLoading, setMoreLoading] = useState(false)
   // Reviews state
   const [reviews, setReviews] = useState<any[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
@@ -59,6 +61,33 @@ export default function PropertyDetails() {
     load()
     return () => { ignore = true }
   }, [propertyId])
+
+  // Load more rentals in the same city after main property is loaded
+  useEffect(() => {
+    let ignore = false
+    async function loadMore() {
+      if (!property?.city) return
+      setMoreLoading(true)
+      try {
+        const citySlug = String(property.city)
+          .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase().trim()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+        const data = await PublicPropertiesAPI.list({ citySlug, page: 1, limit: 8 })
+        const list = Array.isArray((data as any).properties) ? (data as any).properties : Array.isArray(data) ? data : []
+        const filtered = list.filter((p: any) => (p.propertyId ?? p.id) !== propertyId)
+        if (!ignore) setMoreCityProps(filtered)
+      } catch (_) {
+        if (!ignore) setMoreCityProps([])
+      } finally {
+        if (!ignore) setMoreLoading(false)
+      }
+    }
+    loadMore()
+    return () => { ignore = true }
+  }, [property?.city, propertyId])
 
   // Load reviews
   useEffect(() => {
@@ -392,6 +421,38 @@ export default function PropertyDetails() {
           </div>
         </div>
       </div>
+
+      {/* More rentals in this city */}
+      <div className="mt-10">
+        <h2 className="text-xl font-semibold mb-3">More rentals in {property.city}</h2>
+        {moreLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="border rounded p-4 animate-pulse">
+                <div className="h-24 bg-gray-200 rounded mb-2" />
+                <div className="h-4 bg-gray-200 rounded w-2/3" />
+              </div>
+            ))}
+          </div>
+        ) : moreCityProps.length === 0 ? (
+          <div className="text-sm text-gray-600">No other rentals found in this city.</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {moreCityProps.map((p) => (
+              <a key={p.id} href={`#/properties/${p.propertyId || p.id}`} className="border rounded p-3 hover:shadow transition flex gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={(p.media && p.media[0]?.url) || p.media?.[0] || property?.coverImageUrl || ''} alt={p.title} className="w-24 h-24 object-cover rounded" />
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{p.title}</div>
+                  <div className="text-sm text-gray-600 truncate">${p.price} / night</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
+
+// Below the return above, add additional JSX rendering within the main returned layout

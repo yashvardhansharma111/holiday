@@ -62,13 +62,19 @@ export default function FeaturedProperties() {
       ? (property.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / property.reviews.length).toFixed(1)
       : property.initialRating || '4.5'
 
+    function visit() {
+      const pid = property.propertyId || property.id
+      window.location.hash = `#/properties/${pid}`
+    }
+
     return (
-      <div className="group cursor-pointer">
+      <div className="group">
         <div className="relative overflow-hidden rounded-xl mb-3 aspect-[16/9]">
           <img
             src={primaryImage}
             alt={property.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onClick={visit}
           />
           <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-800 flex items-center gap-1">
             <Star className={`w-3 h-3 ${type === 'featured' ? 'text-yellow-500' : 'text-orange-500'}`} />
@@ -93,7 +99,7 @@ export default function FeaturedProperties() {
             </div>
           </div>
 
-          <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-purple-600 transition-colors text-base">
+          <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-purple-600 transition-colors text-base" onClick={visit}>
             {property.title}
           </h3>
 
@@ -114,6 +120,13 @@ export default function FeaturedProperties() {
                 ${property.price}{property.pricePerNight ? '/night' : ''}
               </div>
             </div>
+          </div>
+
+          <div className="pt-2">
+            <button onClick={visit} className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm">
+              Visit
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -168,7 +181,7 @@ export default function FeaturedProperties() {
             ))}
           </div>
           <div className="text-center">
-            <button className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium">
+            <button onClick={() => { window.location.hash = `#${linkPath}` }} className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium">
               See All {title}
               <ArrowRight className="w-4 h-4" />
             </button>

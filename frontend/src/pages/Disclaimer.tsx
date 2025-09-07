@@ -17,7 +17,7 @@ const Disclaimer: React.FC = () => {
       >
         <div className="flex items-center justify-center mb-8 gap-3">
           <ShieldCheck className="w-8 h-8 animate-pulse" />
-          <h2 className="text-4xl font-extrabold text-gray-900 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-900 to-indigo-950">
+          <h2 className="text-4xl font-extrabold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-900 to-indigo-950">
             Disclaimer
           </h2>
         </div>

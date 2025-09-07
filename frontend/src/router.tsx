@@ -12,6 +12,9 @@ import HiddenSuperAdminLogin from './pages/HiddenSuperAdminLogin'
 import { useAuth } from './context/auth'
 import PropertyDetails from './pages/PropertyDetails'
 import DestinationProperties from './pages/DestinationProperties'
+import CityProperties from './pages/CityProperties'
+import FeaturedList from './pages/FeaturedList'
+import PopularList from './pages/PopularList'
 import AboutUs from './pages/AboutUs'
 import FAQ from './pages/FAQItem'
 import ContactUs from './pages/ContactUs'
@@ -22,22 +25,32 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsConditions from './pages/TermsConditions'
 import RefundPolicy from './pages/RefundPolicy'
 
-function useHashLocation() {
-  const [hash, setHash] = useState(window.location.hash || '#/')
+function useAppLocation() {
+  const get = () => {
+    if (window.location.hash) return window.location.hash
+    const p = window.location.pathname + window.location.search
+    return p || '/'
+  }
+  const [loc, setLoc] = useState(get())
   useEffect(() => {
-    const onHashChange = () => setHash(window.location.hash || '#/')
+    const onHashChange = () => setLoc(get())
+    const onPopState = () => setLoc(get())
     window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      window.removeEventListener('hashchange', onHashChange)
+      window.removeEventListener('popstate', onPopState)
+    }
   }, [])
-  return hash
+  return loc
 }
 
 export default function Router() {
-  const hash = useHashLocation()
+  const loc = useAppLocation()
   const { user } = useAuth()
 
   const view = useMemo(() => {
-    const path = hash.replace('#', '') || '/'
+    const path = (loc.startsWith('#') ? loc.replace('#', '') : loc) || '/'
     if (path === '/' || path === '/home') return <HomePage />
     if (path === '/login') return <LoginPage />
     if (path === '/signup') return <SignupPage />
@@ -88,7 +101,14 @@ export default function Router() {
 
     // Public property details route
     if (path.startsWith('/properties/')) {
+      if (path === '/properties/featured') return <FeaturedList />
+      if (path === '/properties/popular') return <PopularList />
       return <PropertyDetails />
+    }
+
+    // City properties route
+    if (path.startsWith('/cities/') || path.startsWith('/city/')) {
+      return <CityProperties />
     }
 
     // Destination properties route
@@ -125,7 +145,7 @@ export default function Router() {
         </div>
       </div>
     )
-  }, [hash, user?.role, user?.ownerPaid])
+  }, [loc, user?.role, user?.ownerPaid])
 
   return view
 }

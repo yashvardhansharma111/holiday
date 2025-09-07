@@ -70,6 +70,37 @@ export default function SearchForm() {
   const [pets, setPets] = useState(false)
   const [showGuestDropdown, setShowGuestDropdown] = useState(false)
 
+  function slugify(str: string) {
+    return String(str || '')
+      .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+  }
+
+  function onSearch() {
+    const trimmed = location.trim()
+    if (!trimmed) return
+    // If numeric, treat as propertyId
+    if (/^\d+$/.test(trimmed)) {
+      const url = `/properties/${trimmed}`
+      window.history.pushState({}, '', url)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      return
+    }
+    // Otherwise treat as city. Allow formats like "City, Country" – use first token before comma
+    const cityOnly = trimmed.split(',')[0]
+    const citySlug = slugify(cityOnly)
+    const q = new URLSearchParams()
+    if (checkIn) q.set('checkIn', new Date(checkIn).toISOString())
+    if (checkOut) q.set('checkOut', new Date(checkOut).toISOString())
+    const qs = q.toString()
+    const dest = `/cities/${citySlug}${qs ? `?${qs}` : ''}`
+    window.history.pushState({}, '', dest)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
   const handleLocationSelect = (destination: string) => {
     setLocation(destination)
     setShowLocationDropdown(false)
@@ -176,7 +207,27 @@ export default function SearchForm() {
         </PopoverTrigger>
         {showDatePicker && (
           <PopoverContent className="w-auto p-4">
-            <div className="text-sm text-gray-600">Select your dates</div>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700 font-medium">Select your dates</div>
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col text-sm">
+                  <label className="text-gray-600 mb-1">Check-in</label>
+                  <input type="date" className="border rounded px-3 py-2"
+                    value={checkIn ? new Date(checkIn).toISOString().slice(0,10) : ''}
+                    onChange={(e)=> setCheckIn(e.target.value ? new Date(e.target.value) : undefined)} />
+                </div>
+                <div className="flex flex-col text-sm">
+                  <label className="text-gray-600 mb-1">Check-out</label>
+                  <input type="date" className="border rounded px-3 py-2"
+                    value={checkOut ? new Date(checkOut).toISOString().slice(0,10) : ''}
+                    onChange={(e)=> setCheckOut(e.target.value ? new Date(e.target.value) : undefined)} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button className="bg-gray-100" onClick={()=>{ setCheckIn(undefined); setCheckOut(undefined); }}>Clear</Button>
+                <Button className="bg-purple-600 text-white" onClick={()=> setShowDatePicker(false)}>Apply</Button>
+              </div>
+            </div>
           </PopoverContent>
         )}
       </Popover>
@@ -268,7 +319,7 @@ export default function SearchForm() {
     </Popover>
 
     <div className="pl-4 pr-2">
-      <Button className="bg-gradient-to-r from-purple-600 via-purple-500 to-pink-500 hover:from-purple-700 hover:via-purple-600 hover:to-pink-600 text-white px-14 py-5 rounded-full font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
+      <Button onClick={onSearch} className="bg-gradient-to-r from-purple-600 via-purple-500 to-pink-500 hover:from-purple-700 hover:via-purple-600 hover:to-pink-600 text-white px-14 py-5 rounded-full font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
         Search
       </Button>
     </div>

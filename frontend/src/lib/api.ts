@@ -1,4 +1,4 @@
-export const API_BASE = import.meta.env.VITE_API_BASE || 'https://72aa1f37bd0d.ngrok-free.app/api'
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('jwt')
@@ -91,11 +91,14 @@ export const PropertiesAPI = {
 
 // Public properties browsing/search
 export const PublicPropertiesAPI = {
-  list: (params?: { search?: string; city?: string; country?: string; minPrice?: number; maxPrice?: number; guests?: number; bedrooms?: number; bathrooms?: number; sort?: string; page?: number; limit?: number; minRating?: number }) => {
+  list: (params?: { search?: string; city?: string; citySlug?: string; country?: string; minPrice?: number; maxPrice?: number; guests?: number; bedrooms?: number; bathrooms?: number; sort?: string; page?: number; limit?: number; minRating?: number; checkIn?: string; checkOut?: string }) => {
     const q = new URLSearchParams()
     if (params?.search) q.set('search', params.search)
     if (params?.city) q.set('city', params.city)
+    if (params?.citySlug) q.set('citySlug', params.citySlug)
     if (params?.country) q.set('country', params.country)
+    if (params?.checkIn) q.set('checkIn', params.checkIn)
+    if (params?.checkOut) q.set('checkOut', params.checkOut)
     if (params?.minPrice != null) q.set('minPrice', String(params.minPrice))
     if (params?.maxPrice != null) q.set('maxPrice', String(params.maxPrice))
     if (params?.guests != null) q.set('guests', String(params.guests))
@@ -110,6 +113,13 @@ export const PublicPropertiesAPI = {
   },
   get: (id: number) => request(`/properties/${id}`, { method: 'GET' }),
   popularCities: () => request('/properties/cities', { method: 'GET' }),
+  popularRentalsByCity: (params?: { citiesLimit?: number; propsPerCity?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.citiesLimit) q.set('citiesLimit', String(params.citiesLimit))
+    if (params?.propsPerCity) q.set('propsPerCity', String(params.propsPerCity))
+    const qs = q.toString()
+    return request(`/properties/cities/popular-rentals${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
 }
 
 // Media management (presigned upload for properties)

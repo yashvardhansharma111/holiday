@@ -1,88 +1,30 @@
 import { useState, useEffect } from 'react'
-import { MapPin, ArrowRight } from 'lucide-react'
-import { DestinationsAPI } from '../api'
-
-interface Destination {
-  id: number
-  name: string
-  slug: string
-  propertyCount: number
-}
-
-interface Region {
-  id: number
-  name: string
-  slug: string
-  destinations: Destination[]
-  children: Region[]
-}
+import { MapPin } from 'lucide-react'
+import { PublicPropertiesAPI } from '../lib/api'
 
 export default function DestinationsShowcase() {
-  const [regions, setRegions] = useState<Region[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sections, setSections] = useState<Array<{ city: { id: number; name: string; country?: string }, propertyCount: number, properties: any[] }>>([])
 
+  // Load popular rentals by city (single request)
   useEffect(() => {
-    const loadRegions = async () => {
+    let ignore = false
+    async function load() {
       try {
         setLoading(true)
-        const response = await DestinationsAPI.getRegionsWithDestinations()
-        setRegions(response.data || [])
-      } catch (error: any) {
-        setError(error.message || 'Failed to load destinations')
+        const data = await PublicPropertiesAPI.popularRentalsByCity({ citiesLimit: 6, propsPerCity: 6 })
+        const list = Array.isArray(data) ? data : (data?.data || [])
+        if (!ignore) setSections(Array.isArray(list) ? list : [])
+      } catch (e: any) {
+        if (!ignore) setError(e?.message || 'Failed to load cities')
       } finally {
-        setLoading(false)
+        if (!ignore) setLoading(false)
       }
     }
-
-    loadRegions()
+    load()
+    return () => { ignore = true }
   }, [])
-
-  const DestinationButton = ({ destination }: { destination: Destination }) => (
-    <button 
-      onClick={() => { window.location.hash = `#/destinations/${destination.slug}` }}
-      className="bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors duration-200 flex items-center justify-between min-w-0"
-    >
-      <span className="truncate">{destination.name}</span>
-      {destination.propertyCount > 0 && (
-        <span className="ml-2 bg-blue-600 px-2 py-1 rounded-full text-xs">
-          {destination.propertyCount}
-        </span>
-      )}
-    </button>
-  )
-
-  const RegionSection = ({ region }: { region: Region }) => (
-    <div className="mb-8">
-      <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-        <MapPin className="w-5 h-5 text-blue-600" />
-        Top Vacation Rentals in {region.name}
-      </h3>
-      
-      {/* Direct destinations for this region */}
-      {region.destinations.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-          {region.destinations.map((destination) => (
-            <DestinationButton key={destination.id} destination={destination} />
-          ))}
-        </div>
-      )}
-
-      {/* Child regions (sub-regions) */}
-      {region.children.map((childRegion) => (
-        <div key={childRegion.id} className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-800 mb-3">
-            Top Vacation Rentals in {childRegion.name}
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {childRegion.destinations.map((destination) => (
-              <DestinationButton key={destination.id} destination={destination} />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 
   if (loading) {
     return (
@@ -121,43 +63,48 @@ export default function DestinationsShowcase() {
     )
   }
 
-  if (regions.length === 0) {
-    return (
-      <section className="py-16 px-6 bg-gray-50">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-            <MapPin className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-            <p className="text-blue-800 font-medium mb-2">No destinations available</p>
-            <p className="text-blue-600 text-sm">Destinations will appear here once they are added by administrators</p>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
   return (
     <section className="py-16 px-6 bg-gray-50">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Explore Top Vacation Destinations
-          </h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Discover amazing vacation rentals across the world's most popular destinations
-          </p>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore Top Vacation Rentals by City</h2>
+          <p className="text-gray-600 max-w-2xl mx-auto">Browse properties by city. Click a city to view all rentals available there.</p>
         </div>
 
-        <div className="space-y-8">
-          {regions.map((region) => (
-            <RegionSection key={region.id} region={region} />
-          ))}
-        </div>
-
-        <div className="text-center mt-12">
-          <button className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-            View All Destinations
-            <ArrowRight className="w-4 h-4" />
-          </button>
+        {/* Per-city sections with sample property links */}
+        <div className="space-y-10">
+          {sections.map((s) => {
+            const c = s.city
+            const slug = String(c.name || '')
+              .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase().trim()
+              .replace(/[^a-z0-9\s-]/g, '')
+              .replace(/\s+/g, '-')
+              .replace(/-+/g, '-')
+            const samples = s.properties || []
+            return (
+              <div key={c.id}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-blue-600" /> Popular Rentals in {c.name}
+                  </h3>
+                  <a href={`#/cities/${slug}`} className="text-sm text-blue-700 hover:underline">View all in {c.name}</a>
+                </div>
+                {samples.length === 0 ? (
+                  <div className="text-sm text-gray-500">No properties found yet in {c.name}.</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {samples.map((p: any) => (
+                      <a key={p.id} href={`#/properties/${p.propertyId || p.id}`} className="bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors duration-200 flex items-center justify-between min-w-0">
+                        <span className="truncate">{p.title || 'Property'}</span>
+                        <span className="ml-2 bg-blue-600 px-2 py-1 rounded-full text-xs">${p.price ?? ''}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     </section>
