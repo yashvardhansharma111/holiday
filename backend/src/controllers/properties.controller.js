@@ -360,7 +360,7 @@ export const createByAgentOrOwner = async (req, res) => {
       }
     }
 
-    // Validate city exists or create it
+    // Validate city exists or create it (City.name is unique in schema)
     let cityRecord = await prisma.city.findUnique({
       where: { name: data.city }
     });
