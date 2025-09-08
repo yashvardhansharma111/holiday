@@ -960,14 +960,22 @@ export const createProperty = async (req, res) => {
       );
     }
 
+    // Ensure City exists and provide required cityId relation
+    const cityName = city?.trim() || ''
+    const countryName = country?.trim() || ''
+    let cityRecord = await prisma.city.findUnique({ where: { name: cityName } })
+    if (!cityRecord) {
+      cityRecord = await prisma.city.create({ data: { name: cityName, country: countryName } })
+    }
+
     // Create property with admin as owner
     const property = await prisma.property.create({
       data: {
         title: title.trim(),
         description: description.trim(),
         location: location.trim(),
-        city: city?.trim() || '',
-        country: country?.trim() || '',
+        city: cityName,
+        country: countryName,
         address: address?.trim() || '',
         price: Number(price),
         pricePerNight: Boolean(pricePerNight),
@@ -980,6 +988,7 @@ export const createProperty = async (req, res) => {
         status: 'LIVE', // Admin properties go live immediately
         ownerId: req.user.id, // Admin becomes the owner
         adminId: req.user.id,
+        cityId: cityRecord.id,
         // media stored as JSON array per schema
         media: Array.isArray(media) ? media : [],
         // optional region/destination mapping

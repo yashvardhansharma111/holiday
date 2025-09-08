@@ -266,28 +266,4 @@ export const exportBookingICS = async (req, res) => {
         )
       );
   }
-};
-
-// GET /api/properties/:id/ical/meta
-export const getPropertyIcalMeta = async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      return res
-        .status(HTTP_STATUS.BAD_REQUEST)
-        .json(errorResponse("Invalid property id", HTTP_STATUS.BAD_REQUEST));
-    }
-    const meta = IcalCache.getMeta(id);
-    return res.json({ success: true, data: meta });
-  } catch (error) {
-    console.error("getPropertyIcalMeta error:", error);
-    return res
-      .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
-      .json(
-        errorResponse(
-          "Failed to read iCal meta",
-          HTTP_STATUS.INTERNAL_SERVER_ERROR
-        )
-      );
-  }
-};
+}
