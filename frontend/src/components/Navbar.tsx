@@ -155,7 +155,7 @@ export default function Navbar() {
             <button
               onClick={logout}
               aria-label="Logout"
-              className="md:hidden p-3 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-red-200 transition-all duration-200"
+              className="p-3 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-red-200 transition-all duration-200"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"

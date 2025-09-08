@@ -18,6 +18,7 @@ export default function HomePage() {
       {/* Hero Section - full background slider */}
      <Hero/>
       <FeaturedProperties />
+      {/* POpouplar destination */}
       <DestinationsShowcase />
       <WhyChooseUs />
       <WhyUs/>
@@ -28,3 +29,8 @@ export default function HomePage() {
     </div>
   )
 }
+
+
+// Recommeded Properties Section
+// Event Section
+// Popular Destination Section
