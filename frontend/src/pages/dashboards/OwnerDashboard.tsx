@@ -185,6 +185,8 @@ function MyPropertiesTab() {
           )}
         </div>
       )}
+
+      
     </div>
   )
 }
@@ -200,6 +202,11 @@ function PropertyCard({ prop, onChanged, onDelete }: { prop: any; onChanged: () 
   const [openBookings, setOpenBookings] = useState(false)
   const [bookings, setBookings] = useState<any[] | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
+  // iCal runtime cache controls
+  const [icalUrl, setIcalUrl] = useState('')
+  const [icalStatus, setIcalStatus] = useState<string | null>(null)
+  const [icalLoading, setIcalLoading] = useState(false)
+  const [icalBlocks, setIcalBlocks] = useState<any[] | null>(null)
 
   const save = async () => {
     setSaving(true)
@@ -441,6 +448,50 @@ function PropertyCard({ prop, onChanged, onDelete }: { prop: any; onChanged: () 
           </div>
         </div>
       )}
+
+      {/* iCal Sync (runtime cache, no DB) */}
+      <div className="px-6 pb-6">
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 mb-2">iCal Sync</h4>
+          <p className="text-sm text-gray-600 mb-3">Paste an external iCal URL and sync to server memory. This will immediately affect availability filtering for searches.</p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input value={icalUrl} onChange={e=>setIcalUrl(e.target.value)} placeholder="https://...calendar.ics" className="flex-1 border rounded px-3 py-2" />
+            <button disabled={icalLoading || !icalUrl} onClick={async ()=>{
+              try {
+                setIcalLoading(true); setIcalStatus(null)
+                const res = await fetch(`/api/properties/${prop.id}/ical/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: icalUrl }) })
+                const data = await res.json()
+                if (data?.success) setIcalStatus(`Synced. Events: ${data?.data?.events ?? 0}`)
+                else setIcalStatus(data?.message || 'Sync failed')
+              } catch (e:any) { setIcalStatus(e?.message || 'Sync failed') } finally { setIcalLoading(false) }
+            }} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-60">{icalLoading? 'Syncing…' : 'Sync iCal'}</button>
+            <button onClick={async ()=>{
+              try {
+                const params = new URLSearchParams()
+                const from = new Date(); const to = new Date(); to.setMonth(to.getMonth()+6)
+                params.set('from', from.toISOString()); params.set('to', to.toISOString())
+                const r = await fetch(`/api/properties/${prop.id}/ical/blocks?`+params.toString())
+                const d = await r.json();
+                setIcalBlocks(Array.isArray(d?.data) ? d.data : [])
+              } catch (_) { setIcalBlocks([]) }
+            }} className="px-4 py-2 border rounded hover:bg-gray-50">View Cached Blocks</button>
+          </div>
+          {icalStatus && <p className="text-sm mt-2">{icalStatus}</p>}
+          {Array.isArray(icalBlocks) && (
+            <div className="mt-3 text-sm text-gray-700">
+              <div className="font-medium mb-1">Cached blocks (next 6 months): {icalBlocks.length}</div>
+              <div className="max-h-40 overflow-auto border rounded p-2 bg-white">
+                {icalBlocks.length === 0 ? <div className="text-gray-500">No cached blocks</div> : icalBlocks.map((b: any, i: number)=> (
+                  <div key={i} className="flex items-center justify-between py-1 border-b last:border-b-0">
+                    <span>{new Date(b.start).toLocaleDateString()} → {new Date(b.end).toLocaleDateString()}</span>
+                    <span className="text-xs text-gray-500">{b.summary || ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

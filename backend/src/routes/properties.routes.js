@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth, requireRole, validateResourceOwnership } from '../middleware/auth.js';
 import * as propertyController from '../controllers/properties.controller.js';
+import { exportPropertyAvailabilityICS, syncPropertyIcal, getPropertyIcalBlocks, getPropertyIcalMeta } from '../controllers/ical.controller.js';
 
 const router = express.Router();
 
@@ -10,6 +11,12 @@ router.get('/cities/popular-rentals', propertyController.getPopularRentalsByCity
 router.get('/cities', propertyController.getPopularCities);
 router.get('/featured', propertyController.getFeaturedProperties);
 router.get('/popular', propertyController.getPopularProperties);
+// Runtime iCal (no DB changes)
+router.post('/:id/ical/sync', syncPropertyIcal);
+router.get('/:id/ical/blocks', getPropertyIcalBlocks);
+router.get('/:id/ical/meta', getPropertyIcalMeta);
+router.get('/:id/availability.ics', exportPropertyAvailabilityICS);
+router.get('/:id/availability-check', propertyController.checkAvailability);
 router.get('/:id', propertyController.getPropertyById);
 
 // Protected routes - Agent/Owner

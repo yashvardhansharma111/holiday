@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth, requireRole, validateResourceOwnership } from '../middleware/auth.js';
 import * as bookingController from '../controllers/bookings.controller.js';
+import { exportBookingICS } from '../controllers/ical.controller.js';
 
 const router = express.Router();
 

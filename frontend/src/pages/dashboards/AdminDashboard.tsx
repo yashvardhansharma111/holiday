@@ -612,6 +612,40 @@ function PropertiesTab() {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
+                  {/* iCal quick actions */}
+                  <button
+                    onClick={async () => {
+                      const url = window.prompt('Enter iCal URL to sync for this property:')
+                      if (!url) return
+                      try {
+                        const res = await fetch(`/api/properties/${property.id}/ical/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+                        const data = await res.json()
+                        if (data?.success) alert(`iCal synced. Events: ${data?.data?.events ?? 0}`)
+                        else alert(data?.message || 'Sync failed')
+                      } catch (e:any) { alert(e?.message || 'Sync failed') }
+                    }}
+                    className="px-3 py-2 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors text-sm"
+                    title="Sync iCal"
+                  >
+                    Sync iCal
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const params = new URLSearchParams()
+                        const from = new Date(); const to = new Date(); to.setMonth(to.getMonth()+6)
+                        params.set('from', from.toISOString()); params.set('to', to.toISOString())
+                        const r = await fetch(`/api/properties/${property.id}/ical/blocks?`+params.toString())
+                        const d = await r.json()
+                        const count = Array.isArray(d?.data) ? d.data.length : 0
+                        alert(`Cached blocks (next 6 months): ${count}`)
+                      } catch (e:any) { alert(e?.message || 'Failed to load blocks') }
+                    }}
+                    className="px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                    title="View Cached Blocks"
+                  >
+                    View Blocks
+                  </button>
                 </div>
               </div>
             </div>

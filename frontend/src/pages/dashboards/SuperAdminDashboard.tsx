@@ -360,11 +360,45 @@ function PropertiesTab() {
                     Edit
                   </button>
                   <button 
-                    onClick={() => deleteProperty(property.id)}
+                    onClick={() => deleteProperty(property.id)} 
                     className="inline-flex items-center gap-2 px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete
+                  </button>
+                  {/* iCal quick actions */}
+                  <button
+                    onClick={async () => {
+                      const url = window.prompt('Enter iCal URL to sync for this property:')
+                      if (!url) return
+                      try {
+                        const res = await fetch(`/api/properties/${property.id}/ical/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+                        const data = await res.json()
+                        if (data?.success) alert(`iCal synced. Events: ${data?.data?.events ?? 0}`)
+                        else alert(data?.message || 'Sync failed')
+                      } catch (e:any) { alert(e?.message || 'Sync failed') }
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                    title="Sync iCal"
+                  >
+                    Sync iCal
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const params = new URLSearchParams()
+                        const from = new Date(); const to = new Date(); to.setMonth(to.getMonth()+6)
+                        params.set('from', from.toISOString()); params.set('to', to.toISOString())
+                        const r = await fetch(`/api/properties/${property.id}/ical/blocks?`+params.toString())
+                        const d = await r.json()
+                        const count = Array.isArray(d?.data) ? d.data.length : 0
+                        alert(`Cached blocks (next 6 months): ${count}`)
+                      } catch (e:any) { alert(e?.message || 'Failed to load blocks') }
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    title="View Cached Blocks"
+                  >
+                    View Blocks
                   </button>
                 </div>
               </div>

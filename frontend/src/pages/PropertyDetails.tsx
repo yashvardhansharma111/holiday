@@ -10,6 +10,11 @@ export default function PropertyDetails() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [moreCityProps, setMoreCityProps] = useState<any[]>([])
   const [moreLoading, setMoreLoading] = useState(false)
+  // iCal runtime sync (owner/agent tools)
+  const [icalUrl, setIcalUrl] = useState('')
+  const [icalStatus, setIcalStatus] = useState<string | null>(null)
+  const [icalLoading, setIcalLoading] = useState(false)
+  const [icalBlocks, setIcalBlocks] = useState<any[] | null>(null)
   // Reviews state
   const [reviews, setReviews] = useState<any[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
@@ -26,6 +31,8 @@ export default function PropertyDetails() {
   const [endDate, setEndDate] = useState('')
   const [guests, setGuests] = useState(1)
   const [specialRequests, setSpecialRequests] = useState('')
+  const [isAvailable, setIsAvailable] = useState<boolean | null>(null)
+  const [availabilityNote, setAvailabilityNote] = useState<string | null>(null)
 
   const { user } = useAuth()
 
@@ -123,6 +130,36 @@ export default function PropertyDetails() {
     loadReviews()
     return () => { ignore = true }
   }, [propertyId, reviewsPage, filterRating, filterVerified])
+
+  // Check availability when dates change
+  useEffect(() => {
+    let ignore = false
+    async function check() {
+      if (!propertyId || !startDate || !endDate) { setIsAvailable(null); setAvailabilityNote(null); return }
+      try {
+        const qs = new URLSearchParams({ start: new Date(startDate).toISOString(), end: new Date(endDate).toISOString() })
+        const res = await fetch(`/api/properties/${propertyId}/availability-check?`+qs.toString())
+        const data = await res.json()
+        if (ignore) return
+        const available = !!data?.data?.available
+        setIsAvailable(available)
+        if (!available) {
+          const byBooking = data?.data?.bookingConflict
+          const byIcal = data?.data?.icalConflict
+          if (byBooking && byIcal) setAvailabilityNote('Dates blocked due to an existing booking and an external calendar block.')
+          else if (byBooking) setAvailabilityNote('Dates blocked due to an existing booking.')
+          else if (byIcal) setAvailabilityNote('Dates blocked by the property’s external calendar (iCal).')
+          else setAvailabilityNote('Selected dates are not available.')
+        } else {
+          setAvailabilityNote('Dates appear to be available.')
+        }
+      } catch (_) {
+        if (!ignore) { setIsAvailable(null); setAvailabilityNote(null) }
+      }
+    }
+    check()
+    return () => { ignore = true }
+  }, [propertyId, startDate, endDate])
 
   async function submitReview() {
     if (!user) {
@@ -395,6 +432,11 @@ export default function PropertyDetails() {
             <div className="text-xl font-semibold mb-1">${property.price} <span className="text-sm font-normal text-gray-600">/ night</span></div>
             <div className="text-sm text-gray-600 mb-4">Instant booking: {property.instantBooking ? 'Yes' : 'No'}</div>
             {successMsg && <div className="mb-3 p-2 text-sm bg-green-50 border border-green-200 text-green-700 rounded">{successMsg}</div>}
+            {availabilityNote && (
+              <div className={`mb-3 p-2 text-sm rounded border ${isAvailable ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                {availabilityNote}
+              </div>
+            )}
 
             <div className="space-y-3">
               <div>
@@ -406,6 +448,16 @@ export default function PropertyDetails() {
                 <input type="date" className="w-full border rounded px-3 py-2" value={endDate} onChange={e=>setEndDate(e.target.value)} />
               </div>
               <div>
+                <a
+                  href={`/api/properties/${property.id}/availability.ics`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-purple-700 hover:underline"
+                >
+                  Download availability (.ics)
+                </a>
+              </div>
+              <div>
                 <label className="block text-sm text-gray-700 mb-1">Guests</label>
                 <input type="number" min={1} className="w-full border rounded px-3 py-2" value={guests} onChange={e=>setGuests(Number(e.target.value)||1)} />
               </div>
@@ -413,7 +465,7 @@ export default function PropertyDetails() {
                 <label className="block text-sm text-gray-700 mb-1">Special requests (optional)</label>
                 <textarea className="w-full border rounded px-3 py-2" rows={3} value={specialRequests} onChange={e=>setSpecialRequests(e.target.value)} />
               </div>
-              <button onClick={book} disabled={bookingLoading} className="w-full bg-purple-700 text-white rounded px-4 py-2 hover:bg-purple-800 disabled:opacity-60">
+              <button onClick={book} disabled={bookingLoading || isAvailable === false} className="w-full bg-purple-700 text-white rounded px-4 py-2 hover:bg-purple-800 disabled:opacity-60">
                 {bookingLoading ? 'Booking…' : 'Book now'}
               </button>
               <p className="text-xs text-gray-500">On booking, the owner/agent will be able to see your name and contact details with the booking.</p>
@@ -451,6 +503,52 @@ export default function PropertyDetails() {
           </div>
         )}
       </div>
+
+      {/* Owner/Agent: iCal runtime sync tools (no DB change). Visible to OWNER/AGENT only */}
+      {user && (user.role === 'OWNER' || user.role === 'AGENT' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
+        <div className="mt-10 border rounded-lg p-4">
+          <h3 className="font-semibold text-gray-900 mb-2">iCal Sync (runtime cache)</h3>
+          <p className="text-sm text-gray-600 mb-3">Paste an external iCal URL (Airbnb/VRBO/Google). This syncs to server memory and affects date availability filtering instantly.</p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input value={icalUrl} onChange={e=>setIcalUrl(e.target.value)} placeholder="https://...calendar.ics" className="flex-1 border rounded px-3 py-2" />
+            <button disabled={icalLoading || !icalUrl} onClick={async ()=>{
+              try {
+                setIcalLoading(true); setIcalStatus(null)
+                const res = await fetch(`/api/properties/${property.id}/ical/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: icalUrl }) })
+                const data = await res.json()
+                if (data?.success) setIcalStatus(`Synced. Events: ${data?.data?.events ?? 0}`)
+                else setIcalStatus(data?.message || 'Sync failed')
+              } catch (e:any) { setIcalStatus(e?.message || 'Sync failed') } finally { setIcalLoading(false) }
+            }} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-60">{icalLoading? 'Syncing…' : 'Sync iCal'}</button>
+            <button onClick={async ()=>{
+              try {
+                const params = new URLSearchParams()
+                // If user selected dates above (not in this panel), we can default to next 6 months
+                const from = new Date();
+                const to = new Date(); to.setMonth(to.getMonth()+6)
+                params.set('from', from.toISOString()); params.set('to', to.toISOString())
+                const r = await fetch(`/api/properties/${property.id}/ical/blocks?`+params.toString())
+                const d = await r.json();
+                setIcalBlocks(Array.isArray(d?.data) ? d.data : [])
+              } catch (_) { setIcalBlocks([]) }
+            }} className="px-4 py-2 border rounded hover:bg-gray-50">View Cached Blocks</button>
+          </div>
+          {icalStatus && <p className="text-sm mt-2">{icalStatus}</p>}
+          {Array.isArray(icalBlocks) && (
+            <div className="mt-3 text-sm text-gray-700">
+              <div className="font-medium mb-1">Cached blocks (next 6 months): {icalBlocks.length}</div>
+              <div className="max-h-48 overflow-auto border rounded p-2 bg-gray-50">
+                {icalBlocks.length === 0 ? <div className="text-gray-500">No cached blocks</div> : icalBlocks.map((b, i)=> (
+                  <div key={i} className="flex items-center justify-between py-1 border-b last:border-b-0">
+                    <span>{new Date(b.start).toLocaleDateString()} → {new Date(b.end).toLocaleDateString()}</span>
+                    <span className="text-xs text-gray-500">{b.summary || ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

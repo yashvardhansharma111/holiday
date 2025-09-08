@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import prisma from '../db.js';
 import { successResponse, errorResponse, ERROR_MESSAGES, HTTP_STATUS } from '../utils/responses.js';
+import { IcalCache } from '../services/icalCache.service.js';
 import { S3Service } from '../services/s3.service.js';
 import { 
   createPropertySchema, 
@@ -39,6 +40,9 @@ export const listPublic = async (req, res) => {
       regionSlug,
       destinationSlug
     } = req.query;
+
+    // Opportunistically refresh stale iCal caches in the background (non-blocking)
+    try { IcalCache.refreshStaleFeedsAsync(process.env.ICAL_CACHE_TTL_MS); } catch (_) {}
 
     // Build where clause
     const where = { status: 'LIVE' };
@@ -103,9 +107,21 @@ export const listPublic = async (req, res) => {
         select: { propertyId: true }
       });
       
-      const conflictingPropertyIds = [...new Set(conflictingBookings.map(b => b.propertyId))];
-      if (conflictingPropertyIds.length > 0) {
-        where.id = { notIn: conflictingPropertyIds };
+      const conflictingPropertyIds = new Set(conflictingBookings.map(b => b.propertyId));
+      // Include iCal cached blocks (runtime, no DB)
+      try {
+        const blockedByIcal = IcalCache.getBlockedPropertyIdsInRange(startDate, endDate);
+        for (const pid of blockedByIcal) conflictingPropertyIds.add(pid);
+      } catch (_) { /* ignore cache errors */ }
+
+      if (conflictingPropertyIds.size > 0) {
+        const ids = Array.from(conflictingPropertyIds.values());
+        if (where.id && where.id.notIn) {
+          // merge with existing notIn
+          where.id.notIn = Array.from(new Set([...(where.id.notIn || []), ...ids]));
+        } else {
+          where.id = { notIn: ids };
+        }
       }
     }
 
@@ -666,6 +682,39 @@ export const deleteProperty = async (req, res) => {
     );
   }
 };
+
+// PUBLIC: Quick availability check for one property (bookings + runtime iCal cache)
+export const checkAvailability = async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { start, end } = req.query
+    if (!Number.isFinite(id) || !start || !end) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse('Invalid request', HTTP_STATUS.BAD_REQUEST))
+    }
+    const startDate = new Date(String(start))
+    const endDate = new Date(String(end))
+    if (!(startDate < endDate)) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(errorResponse('Invalid date range', HTTP_STATUS.BAD_REQUEST))
+    }
+    // Booking conflicts
+    const bookingConflict = await prisma.booking.findFirst({
+      where: { propertyId: id, status: { in: ['CONFIRMED','PENDING'] }, startDate: { lt: endDate }, endDate: { gt: startDate } },
+      select: { id: true }
+    })
+    let icalConflict = false
+    try {
+      const cached = IcalCache.get(id)
+      if (cached?.events?.length) {
+        icalConflict = cached.events.some(ev => new Date(ev.start) < endDate && new Date(ev.end) > startDate)
+      }
+    } catch(_) { /* ignore */ }
+    const available = !bookingConflict && !icalConflict
+    return res.json(successResponse({ available, bookingConflict: !!bookingConflict, icalConflict }, 'Availability checked'))
+  } catch (error) {
+    console.error('checkAvailability error:', error)
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(errorResponse('Failed to check availability', HTTP_STATUS.INTERNAL_SERVER_ERROR))
+  }
+}
 
 // ADMIN: Approve property
 export const adminApprove = async (req, res) => {
