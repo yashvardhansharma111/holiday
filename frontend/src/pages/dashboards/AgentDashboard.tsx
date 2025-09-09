@@ -315,14 +315,11 @@ function AgentPropertyCard({ prop, onChanged }: { prop: any; onChanged: () => vo
   const [city, setCity] = useState(prop.city || '')
   const [country, setCountry] = useState(prop.country || '')
   const [instantBooking, setInstantBooking] = useState(!!prop.instantBooking)
-  const [isFeatured, setIsFeatured] = useState(!!prop.isFeatured)
-  const [isPopular, setIsPopular] = useState(!!prop.isPopular)
   const [media, setMedia] = useState<any[]>(prop.media || [])
   const [openBookings, setOpenBookings] = useState(false)
   const [bookingsList, setBookingsList] = useState<any[] | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [updatingFlags, setUpdatingFlags] = useState(false)
   // iCal runtime cache controls
   const [icalUrl, setIcalUrl] = useState('')
   const [icalStatus, setIcalStatus] = useState<string | null>(null)
@@ -388,23 +385,7 @@ function AgentPropertyCard({ prop, onChanged }: { prop: any; onChanged: () => vo
     finally { setBusy(null) }
   }
 
-  const updateFeatureFlags = async () => {
-    setUpdatingFlags(true)
-    try {
-      const token = localStorage.getItem('jwt')
-      if (!token) throw new Error('No authentication token found')
-      
-      await NewPropertiesAPI.updateFeatureFlags(prop.id, { isFeatured, isPopular }, token)
-      onChanged()
-    } catch (e: any) {
-      alert(e?.message || 'Failed to update feature flags')
-      // Reset to original values on error
-      setIsFeatured(!!prop.isFeatured)
-      setIsPopular(!!prop.isPopular)
-    } finally {
-      setUpdatingFlags(false)
-    }
-  }
+  // Feature flags are Super Admin-only; Agent UI removed
 
   return (
     <div className="group bg-white border border-purple-100 rounded-xl shadow-sm hover:shadow-lg hover:shadow-purple-100/50 transition-all duration-300">
@@ -492,47 +473,7 @@ function AgentPropertyCard({ prop, onChanged }: { prop: any; onChanged: () => vo
             </label>
           </div>
           
-          {/* Feature Flags Section */}
-          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <Star className="w-4 h-4 text-purple-600" />
-              Feature Flags
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-                <input 
-                  type="checkbox" 
-                  checked={isFeatured} 
-                  onChange={e=>setIsFeatured(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
-                />
-                <span className="flex items-center gap-1">
-                  <Star className="w-3 h-3 text-yellow-500" />
-                  Featured Property
-                </span>
-              </label>
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-                <input 
-                  type="checkbox" 
-                  checked={isPopular} 
-                  onChange={e=>setIsPopular(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
-                />
-                <span className="flex items-center gap-1">
-                  <Star className="w-3 h-3 text-orange-500" />
-                  Popular Property
-                </span>
-              </label>
-            </div>
-            <button 
-              onClick={updateFeatureFlags}
-              disabled={updatingFlags}
-              className="mt-3 inline-flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors text-sm"
-            >
-              <Star className="w-3 h-3" />
-              {updatingFlags ? 'Updating...' : 'Update Flags'}
-            </button>
-          </div>
+          {/* Feature Flags: not available for Agents */}
         </div>
 
         {/* Action Buttons */}
@@ -696,6 +637,8 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
   const [country, setCountry] = useState('')
   const [address, setAddress] = useState('')
   const [location, setLocation] = useState('')
+  const [latitude, setLatitude] = useState<number | ''>('' as any)
+  const [longitude, setLongitude] = useState<number | ''>('' as any)
   const [price, setPrice] = useState<number | ''>('' as any)
   const [maxGuests, setMaxGuests] = useState<number | ''>('' as any)
   const [bedrooms, setBedrooms] = useState<number | ''>('' as any)
@@ -761,6 +704,8 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
         city,
         country,
         address,
+        ...(latitude !== '' ? { latitude: Number(latitude) } : {}),
+        ...(longitude !== '' ? { longitude: Number(longitude) } : {}),
         price: Number(price),
         pricePerNight: true,
         amenities: amenitiesSel,
@@ -854,6 +799,28 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
                 placeholder="Full address" 
                 value={address} 
                 onChange={e=>setAddress(e.target.value)} 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Latitude</label>
+              <input 
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors" 
+                placeholder="e.g., 37.7749" 
+                type="number" 
+                step="any" 
+                value={latitude as any} 
+                onChange={e=>setLatitude(e.target.value === '' ? '' : Number(e.target.value))} 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Longitude</label>
+              <input 
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors" 
+                placeholder="e.g., -122.4194" 
+                type="number" 
+                step="any" 
+                value={longitude as any} 
+                onChange={e=>setLongitude(e.target.value === '' ? '' : Number(e.target.value))} 
               />
             </div>
             <div className="space-y-2">

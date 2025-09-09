@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/auth'
 import { AdminAPI } from '../../api'
-import { MediaAPI } from '../../lib/api'
+import { MediaAPI, EventsAPI } from '../../lib/api'
 import { 
   Users, 
   Clock, 
@@ -24,7 +24,296 @@ import {
   UserPlus
 } from 'lucide-react'
 
-type TabKey = 'users' | 'queue' | 'analytics' | 'properties'
+type TabKey = 'users' | 'queue' | 'analytics' | 'properties' | 'events'
+
+// Module-scope EventsTab and EventForm so SuperAdminContent can render them
+function EventsTab() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [events, setEvents] = useState<any[]>([])
+  const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState<any | null>(null)
+
+  const load = async () => {
+    setLoading(true); setError(null)
+    try {
+      const resp = await EventsAPI.list(search ? { search, limit: 50 } : { limit: 50 }) as any
+      const list = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : [])
+      setEvents(list)
+    } catch (e:any) {
+      setError(e?.message || 'Failed to load events')
+      setEvents([])
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const remove = async (id: number) => {
+    if (!confirm('Delete this event?')) return
+    try { await EventsAPI.remove(id); await load() } catch (e:any) { alert(e?.message || 'Delete failed') }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-xl p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-600 rounded-lg">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Events Management</h2>
+              <p className="text-red-600">Create, edit, and manage public events</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setEditing(null); setShowForm(true) }} className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+              <Plus className="w-4 h-4" /> New Event
+            </button>
+            <button onClick={load} disabled={loading} className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-red-100 rounded-xl p-4">
+        <div className="flex items-center gap-3">
+          <Search className="w-5 h-5 text-gray-400" />
+          <input className="flex-1 border-0 focus:ring-0 focus:outline-none text-gray-700" placeholder="Search events by title, description, tag..." value={search} onChange={e=>setSearch(e.target.value)} />
+          <button onClick={load} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">Search</button>
+        </div>
+      </div>
+
+      {(showForm || editing) && (
+        <EventForm 
+          event={editing}
+          onSave={async () => { setShowForm(false); setEditing(null); await load() }}
+          onCancel={() => { setShowForm(false); setEditing(null) }}
+        />
+      )}
+
+      {loading ? (
+        <div className="space-y-4">
+          {[1,2,3].map(i => (
+            <div key={i} className="animate-pulse bg-white border border-red-100 rounded-xl p-6">
+              <div className="h-4 bg-red-100 rounded w-1/3 mb-3" />
+              <div className="h-3 bg-red-100 rounded w-2/3 mb-2" />
+              <div className="h-3 bg-red-100 rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4"><p className="text-red-600 font-medium">{error}</p></div>
+      ) : (
+        <div className="space-y-4">
+          {events.length === 0 && <div className="text-gray-500 text-center py-12">No events found</div>}
+          {events.map((ev:any) => (
+            <div key={ev.id} className="bg-white border border-red-100 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{ev.title}</h3>
+                  <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
+                    <Clock className="w-4 h-4" />
+                    <span>{new Date(ev.startDateTime).toLocaleString()} → {new Date(ev.endDateTime).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
+                    <MapPin className="w-4 h-4" />
+                    <span>{[ev.address, ev.city, ev.state, ev.country].filter(Boolean).join(', ') || '—'}</span>
+                  </div>
+                  {ev.category && <div className="mt-2 inline-flex items-center px-2 py-1 text-xs rounded-full bg-red-50 text-red-700 border border-red-200">{ev.category}</div>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setEditing(ev); setShowForm(true) }} className="inline-flex items-center gap-2 px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"><Edit3 className="w-4 h-4" /> Edit</button>
+                  <button onClick={() => remove(ev.id)} className="inline-flex items-center gap-2 px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /> Delete</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EventForm({ event, onSave, onCancel }: { event?: any; onSave: () => void; onCancel: () => void }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [title, setTitle] = useState(event?.title || '')
+  const [description, setDescription] = useState(event?.description || '')
+  const [category, setCategory] = useState(event?.category || '')
+  const [address, setAddress] = useState(event?.address || '')
+  const [latitude, setLatitude] = useState<number | ''>(event?.latitude ?? '')
+  const [longitude, setLongitude] = useState<number | ''>(event?.longitude ?? '')
+  const [city, setCity] = useState(event?.city || '')
+  const [state, setState] = useState(event?.state || '')
+  const [country, setCountry] = useState(event?.country || '')
+  const [startDateTime, setStartDateTime] = useState<string>(event?.startDateTime ? new Date(event.startDateTime).toISOString().slice(0,16) : '')
+  const [endDateTime, setEndDateTime] = useState<string>(event?.endDateTime ? new Date(event.endDateTime).toISOString().slice(0,16) : '')
+  const [timezone, setTimezone] = useState(event?.timezone || '')
+  const [images, setImages] = useState<string[]>(Array.isArray(event?.images) ? event.images : [])
+  const [tags, setTags] = useState<string[]>(Array.isArray(event?.tags) ? event.tags : [])
+  const [tagInput, setTagInput] = useState('')
+  const [uploading, setUploading] = useState(false)
+
+  const removeImage = (u:string) => setImages(prev=>prev.filter(x=>x!==u))
+  const addTag = () => { if (tagInput.trim()) { setTags(prev=>[...prev, tagInput.trim()]); setTagInput('') } }
+  const removeTag = (t:string) => setTags(prev=>prev.filter(x=>x!==t))
+
+  const onUpload = async (file: File) => {
+    try {
+      setUploading(true)
+      const { presignedUrl, url } = await MediaAPI.generatePresigned(file, 'events')
+      await MediaAPI.uploadToPresigned(presignedUrl, file)
+      setImages(prev => [...prev, url])
+    } catch (e:any) {
+      alert(e?.message || 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSaving(true)
+    try {
+      if (!title || title.trim().length < 3) throw new Error('Title must be at least 3 characters')
+      if (!startDateTime || !endDateTime) throw new Error('Start and End date/time are required')
+      // Lat/Lon validation
+      if (latitude !== '' && (Number(latitude) < -90 || Number(latitude) > 90)) {
+        throw new Error('Latitude must be between -90 and 90')
+      }
+      if (longitude !== '' && (Number(longitude) < -180 || Number(longitude) > 180)) {
+        throw new Error('Longitude must be between -180 and 180')
+      }
+      // Optional basic timezone format check (IANA like Region/City)
+      if (timezone && !/^\w+\/\w+/.test(timezone)) {
+        throw new Error('Timezone should be like "America/Los_Angeles"')
+      }
+      const body:any = {
+        title,
+        ...(description ? { description } : {}),
+        ...(category ? { category } : {}),
+        ...(address ? { address } : {}),
+        ...(latitude !== '' ? { latitude: Number(latitude) } : {}),
+        ...(longitude !== '' ? { longitude: Number(longitude) } : {}),
+        ...(city ? { city } : {}),
+        ...(state ? { state } : {}),
+        ...(country ? { country } : {}),
+        startDateTime: new Date(startDateTime).toISOString(),
+        endDateTime: new Date(endDateTime).toISOString(),
+        ...(timezone ? { timezone } : {}),
+        images,
+        tags,
+      }
+      if (event) await EventsAPI.update(event.id, body)
+      else await EventsAPI.create(body)
+      onSave()
+    } catch (e:any) { setError(e?.message || 'Save failed') } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="bg-white border border-red-100 rounded-xl shadow-sm p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xl font-bold text-gray-900">{event ? 'Edit Event' : 'Create Event'}</h3>
+        <button onClick={onCancel} className="p-2 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-500" /></button>
+      </div>
+      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 mb-3">{error}</div>}
+      <form className="grid md:grid-cols-2 gap-4" onSubmit={submit}>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Title *</label>
+          <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={title} onChange={e=>setTitle(e.target.value)} required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Category</label>
+          <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={category} onChange={e=>setCategory(e.target.value)} />
+        </div>
+        <div className="md:col-span-2 space-y-2">
+          <label className="text-sm font-medium text-gray-700">Description</label>
+          <textarea className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" rows={3} value={description} onChange={e=>setDescription(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Start *</label>
+          <input type="datetime-local" className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={startDateTime} onChange={e=>setStartDateTime(e.target.value)} required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">End *</label>
+          <input type="datetime-local" className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={endDateTime} onChange={e=>setEndDateTime(e.target.value)} required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Timezone</label>
+          <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="e.g., America/Los_Angeles" value={timezone} onChange={e=>setTimezone(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Address</label>
+          <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={address} onChange={e=>setAddress(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Latitude</label>
+          <input type="number" step="any" min={-90} max={90} className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={latitude as any} onChange={e=>setLatitude(e.target.value === '' ? '' : Number(e.target.value))} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Longitude</label>
+          <input type="number" step="any" min={-180} max={180} className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={longitude as any} onChange={e=>setLongitude(e.target.value === '' ? '' : Number(e.target.value))} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">City</label>
+          <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={city} onChange={e=>setCity(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">State</label>
+          <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={state} onChange={e=>setState(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Country</label>
+          <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" value={country} onChange={e=>setCountry(e.target.value)} />
+        </div>
+        <div className="md:col-span-2 bg-red-50 border border-red-100 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 mb-2">Images</h4>
+          <div className="flex items-center gap-3 mb-3">
+            <label className="inline-flex items-center gap-2 px-3 py-2 border border-red-200 rounded-lg bg-white hover:bg-red-50 cursor-pointer">
+              <input type="file" accept="image/*" className="hidden" onChange={e=>{ const f=e.target.files?.[0]; if (f) onUpload(f) }} />
+              <span className="text-sm text-red-700">{uploading ? 'Uploading…' : 'Upload image'}</span>
+            </label>
+            <span className="text-xs text-gray-600">Upload event images. URLs are saved automatically.</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {images.map(u => (
+              <div key={u} className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
+                <span className="truncate max-w-[220px]">{u}</span>
+                <button type="button" onClick={() => removeImage(u)} className="hover:text-red-900"><X className="w-3 h-3" /></button>
+              </div>
+            ))}
+            {images.length === 0 && <p className="text-gray-500 text-sm italic">No images added</p>}
+          </div>
+        </div>
+        <div className="md:col-span-2 bg-red-50 border border-red-100 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 mb-2">Tags</h4>
+          <div className="flex gap-2 mb-3">
+            <input className="flex-1 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Add a tag (e.g., AI, Music)" value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={e=>{ if (e.key==='Enter'){ e.preventDefault(); addTag() } }} />
+            <button type="button" onClick={addTag} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Add</button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {tags.map(t => (
+              <div key={t} className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
+                <span>{t}</span>
+                <button type="button" onClick={() => removeTag(t)} className="hover:text-red-900"><X className="w-3 h-3" /></button>
+              </div>
+            ))}
+            {tags.length === 0 && <p className="text-gray-500 text-sm italic">No tags added</p>}
+          </div>
+        </div>
+        <div className="md:col-span-2 flex items-center gap-3 justify-end">
+          <button type="button" onClick={onCancel} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+          <button type="submit" disabled={saving} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60">{saving ? 'Saving...' : (event ? 'Update Event' : 'Create Event')}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
 
 export default function SuperAdminDashboard() {
   const { user } = useAuth()
@@ -33,7 +322,9 @@ export default function SuperAdminDashboard() {
     if (user?.role !== 'SUPER_ADMIN') {
       location.hash = '#/auth/super-admin'
     }
+
   }, [user?.role])
+
 
   if (user?.role !== 'SUPER_ADMIN') return null
 
@@ -48,6 +339,7 @@ function SuperAdminContent() {
     { key: 'users', label: 'Users Management', icon: Users },
     { key: 'properties', label: 'Properties', icon: Home },
     { key: 'queue', label: 'Properties Queue', icon: Clock },
+    { key: 'events', label: 'Events', icon: Sparkles },
     { key: 'analytics', label: 'Analytics', icon: BarChart3 },
   ]), [])
 
@@ -174,6 +466,7 @@ function SuperAdminContent() {
             {active === 'users' && <UsersTab />}
             {active === 'properties' && <PropertiesTab />}
             {active === 'queue' && <QueueTab />}
+            {active === 'events' && <EventsTab />}
             {active === 'analytics' && <AnalyticsTab />}
           </div>
         </div>
@@ -352,6 +645,23 @@ function PropertiesTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Quick Feature/Popular toggles */}
+                  <button
+                    onClick={async () => { try { await AdminAPI.updateProperty(property.id, { isFeatured: !property.isFeatured }); await load() } catch(e:any){ alert(e?.message||'Failed to toggle Featured') } }}
+                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-sm ${property.isFeatured ? 'bg-yellow-100 border-yellow-200 text-yellow-800' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+                    title={property.isFeatured ? 'Unset Featured' : 'Set Featured'}
+                  >
+                    <Star className={`w-4 h-4 ${property.isFeatured ? 'text-yellow-600' : 'text-gray-500'}`} />
+                    {property.isFeatured ? 'Featured' : 'Mark Featured'}
+                  </button>
+                  <button
+                    onClick={async () => { try { await AdminAPI.updateProperty(property.id, { isPopular: !property.isPopular }); await load() } catch(e:any){ alert(e?.message||'Failed to toggle Popular') } }}
+                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-sm ${property.isPopular ? 'bg-orange-100 border-orange-200 text-orange-800' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+                    title={property.isPopular ? 'Unset Popular' : 'Set Popular'}
+                  >
+                    <Star className={`w-4 h-4 ${property.isPopular ? 'text-orange-600' : 'text-gray-500'}`} />
+                    {property.isPopular ? 'Popular' : 'Mark Popular'}
+                  </button>
                   <button 
                     onClick={() => setEditingProperty(property)}
                     className="inline-flex items-center gap-2 px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
@@ -429,6 +739,8 @@ function PropertyForm({ property, onSave, onCancel }: { property?: any; onSave: 
   const [country, setCountry] = useState(property?.country || '')
   const [address, setAddress] = useState(property?.address || '')
   const [location, setLocation] = useState(property?.location || '')
+  const [latitude, setLatitude] = useState<number | ''>((property?.latitude as number) ?? '' as any)
+  const [longitude, setLongitude] = useState<number | ''>((property?.longitude as number) ?? '' as any)
   const [price, setPrice] = useState<number | ''>(property?.price || '')
   const [maxGuests, setMaxGuests] = useState<number | ''>(property?.maxGuests || '')
   const [bedrooms, setBedrooms] = useState<number | ''>(property?.bedrooms || '')
@@ -473,6 +785,8 @@ function PropertyForm({ property, onSave, onCancel }: { property?: any; onSave: 
         city,
         country,
         address,
+        ...(latitude !== '' ? { latitude: Number(latitude) } : {}),
+        ...(longitude !== '' ? { longitude: Number(longitude) } : {}),
         price: Number(price),
         pricePerNight: true,
         amenities,
@@ -565,6 +879,32 @@ function PropertyForm({ property, onSave, onCancel }: { property?: any; onSave: 
             placeholder="Full address" 
             value={address} 
             onChange={e => setAddress(e.target.value)} 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Latitude</label>
+          <input
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
+            placeholder="e.g., 23.1765"
+            type="number"
+            step="any"
+            min={-90}
+            max={90}
+            value={latitude as any}
+            onChange={e => setLatitude(e.target.value === '' ? '' : Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Longitude</label>
+          <input
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
+            placeholder="e.g., 75.7885"
+            type="number"
+            step="any"
+            min={-180}
+            max={180}
+            value={longitude as any}
+            onChange={e => setLongitude(e.target.value === '' ? '' : Number(e.target.value))}
           />
         </div>
         <div className="space-y-2">

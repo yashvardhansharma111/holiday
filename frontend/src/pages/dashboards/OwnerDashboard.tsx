@@ -506,6 +506,8 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
   const [country, setCountry] = useState('')
   const [address, setAddress] = useState('')
   const [location, setLocation] = useState('')
+  const [latitude, setLatitude] = useState<number | ''>('' as any)
+  const [longitude, setLongitude] = useState<number | ''>('' as any)
   const [price, setPrice] = useState<number | ''>('' as any)
   const [maxGuests, setMaxGuests] = useState<number | ''>('' as any)
   const [bedrooms, setBedrooms] = useState<number | ''>('' as any)
@@ -572,6 +574,8 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
         city,
         country,
         address,
+        ...(latitude !== '' ? { latitude: Number(latitude) } : {}),
+        ...(longitude !== '' ? { longitude: Number(longitude) } : {}),
         price: Number(price),
         pricePerNight: true,
         amenities: amenitiesSel,
@@ -635,6 +639,14 @@ function CreatePropertyTab({ onCreated }: { onCreated: () => void }) {
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Address</label>
             <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors" placeholder="Full address" value={address} onChange={e=>setAddress(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Latitude</label>
+            <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors" placeholder="e.g., 37.7749" type="number" step="any" value={latitude as any} onChange={e=>setLatitude(e.target.value === '' ? '' : Number(e.target.value))} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Longitude</label>
+            <input className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors" placeholder="e.g., -122.4194" type="number" step="any" value={longitude as any} onChange={e=>setLongitude(e.target.value === '' ? '' : Number(e.target.value))} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Price per night *</label>

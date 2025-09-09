@@ -9,18 +9,45 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string; password?: string; role?: string }>({})
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSuccess(null)
+    setFieldErrors({})
+
+    // Client-side validation aligned with backend (auth.schemas.ts)
+    const nextFieldErrors: { name?: string; email?: string; password?: string } = {}
+    if (!name || name.trim().length < 2) nextFieldErrors.name = 'Name must be at least 2 characters'
+    const emailRe = /.+@.+\..+/
+    if (!emailRe.test(email)) nextFieldErrors.email = 'Invalid email format'
+    if (!password || password.length < 8) nextFieldErrors.password = 'Password must be at least 8 characters'
+    if (Object.keys(nextFieldErrors).length) { setFieldErrors(nextFieldErrors); return }
+
     setLoading(true)
     try {
       await AuthAPI.signup({ name, email, password, role })
       setSuccess('Account created. Please login.')
       setTimeout(() => (location.hash = '#/login'), 900)
     } catch (err: any) {
+      // Show global message
       setError(err?.message || 'Signup failed')
+      // Map backend validation errors (Zod) to field-level messages if available
+      if (Array.isArray(err?.errors)) {
+        const fe: { name?: string; email?: string; password?: string; role?: string } = {}
+        for (const item of err.errors) {
+          const field = Array.isArray(item?.path) ? String(item.path[0]) : String(item?.field || '')
+          const message = item?.message || 'Invalid value'
+          if (field in fe === false) {
+            if (field === 'name') fe.name = message
+            if (field === 'email') fe.email = message
+            if (field === 'password') fe.password = message
+            if (field === 'role') fe.role = message
+          }
+        }
+        setFieldErrors(fe)
+      }
     } finally {
       setLoading(false)
     }
@@ -60,12 +87,13 @@ export default function SignupPage() {
                   </svg>
                 </div>
                 <input 
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-4 pl-12 bg-gray-50/50 backdrop-blur-sm transition-all duration-300 focus:border-purple-500 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 hover:border-gray-300 focus:outline-none placeholder-gray-400" 
+                  className={`w-full border-2 rounded-xl px-4 py-4 pl-12 bg-gray-50/50 backdrop-blur-sm transition-all duration-300 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 hover:border-gray-300 focus:outline-none placeholder-gray-400 ${fieldErrors.name ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-purple-500'}`} 
                   placeholder="Full name" 
                   value={name} 
                   onChange={e=>setName(e.target.value)} 
                   required 
                 />
+                {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
               </div>
 
               <div className="relative group">
@@ -75,13 +103,14 @@ export default function SignupPage() {
                   </svg>
                 </div>
                 <input 
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-4 pl-12 bg-gray-50/50 backdrop-blur-sm transition-all duration-300 focus:border-purple-500 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 hover:border-gray-300 focus:outline-none placeholder-gray-400" 
+                  className={`w-full border-2 rounded-xl px-4 py-4 pl-12 bg-gray-50/50 backdrop-blur-sm transition-all duration-300 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 hover:border-gray-300 focus:outline-none placeholder-gray-400 ${fieldErrors.email ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-purple-500'}`} 
                   placeholder="Email address" 
                   type="email" 
                   value={email} 
                   onChange={e=>setEmail(e.target.value)} 
                   required 
                 />
+                {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
               </div>
 
               <div className="relative group">
@@ -91,13 +120,16 @@ export default function SignupPage() {
                   </svg>
                 </div>
                 <input 
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-4 pl-12 bg-gray-50/50 backdrop-blur-sm transition-all duration-300 focus:border-purple-500 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 hover:border-gray-300 focus:outline-none placeholder-gray-400" 
+                  className={`w-full border-2 rounded-xl px-4 py-4 pl-12 bg-gray-50/50 backdrop-blur-sm transition-all duration-300 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 hover:border-gray-300 focus:outline-none placeholder-gray-400 ${fieldErrors.password ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-purple-500'}`} 
                   placeholder="Password" 
                   type="password" 
                   value={password} 
                   onChange={e=>setPassword(e.target.value)} 
                   required 
                 />
+                <div className="mt-1 flex items-center justify-between">
+                  <p className={`text-xs ${fieldErrors.password ? 'text-red-600' : 'text-gray-500'}`}>{fieldErrors.password || 'Min 8 characters'}</p>
+                </div>
               </div>
 
               <div className="relative group">

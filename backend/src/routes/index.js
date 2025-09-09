@@ -7,6 +7,7 @@ import adminRoutes from './admin.routes.js';
 import subscriptionRoutes from './subscriptions.routes.js';
 import mediaRoutes from './media.routes.js';
 import destinationsRoutes from './destinations.routes.js';
+import eventsRoutes from './events.routes.js';
 
 const router = express.Router();
 
@@ -49,5 +50,6 @@ router.use('/admin', adminRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/media', mediaRoutes);
 router.use('/destinations', destinationsRoutes);
+router.use('/events', eventsRoutes);
 
 export default router;

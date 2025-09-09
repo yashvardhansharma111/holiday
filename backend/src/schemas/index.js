@@ -18,3 +18,6 @@ export * from './admin.schemas.js';
 
 // Media Schemas
 export * from './media.schemas.js'; 
+
+// Event Schemas
+export * from './event.schemas.js';

@@ -15,6 +15,7 @@ import DestinationProperties from './pages/DestinationProperties'
 import CityProperties from './pages/CityProperties'
 import FeaturedList from './pages/FeaturedList'
 import PopularList from './pages/PopularList'
+import EventDetails from './pages/EventDetails'
 import AboutUs from './pages/AboutUs'
 import FAQ from './pages/FAQItem'
 import ContactUs from './pages/ContactUs'
@@ -104,6 +105,11 @@ export default function Router() {
       if (path === '/properties/featured') return <FeaturedList />
       if (path === '/properties/popular') return <PopularList />
       return <PropertyDetails />
+    }
+
+    // Event details route
+    if (path.startsWith('/events/')) {
+      return <EventDetails />
     }
 
     // City properties route

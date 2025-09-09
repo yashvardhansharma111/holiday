@@ -3,6 +3,7 @@ import FeaturedProperties from "../components/featured-properties"
 import WhyChooseUs from "../components/why-choose-us"
 import Destinations from "../components/destinations"
 import DestinationsShowcase from "../components/destinations-showcase"
+import HomeEvents from "../components/home-events"
 
 import Hero from './Hero';
 import Footer from "../components/footer";
@@ -23,6 +24,7 @@ export default function HomePage() {
       <WhyUs/>
       <OverviewBookHolidayRental/>
       <Destinations />
+      <HomeEvents />
       <AboutBookHolidayRental/>
       <Footer />
     </div>

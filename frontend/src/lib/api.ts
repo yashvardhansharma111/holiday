@@ -21,7 +21,11 @@ async function request(path: string, options: RequestInit = {}) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok || data?.success === false) {
     const message = data?.message || `Request failed (${res.status})`
-    throw new Error(message)
+    const err: any = new Error(message)
+    // Attach structured validation errors (e.g., Zod) and status for consumers
+    if (data && 'errors' in data) err.errors = data.errors
+    err.status = res.status
+    throw err
   }
   return data?.data ?? data
 }
@@ -196,4 +200,25 @@ export const ReviewsAPI = {
     const qs = q.toString()
     return request(`/reviews/user/list${qs ? `?${qs}` : ''}`, { method: 'GET' })
   },
+}
+
+// Events (public list/detail; SUPER_ADMIN CRUD)
+export const EventsAPI = {
+  list: (params?: { search?: string; category?: string; city?: string; country?: string; startFrom?: string; endTo?: string; page?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.search) q.set('search', params.search)
+    if (params?.category) q.set('category', params.category)
+    if (params?.city) q.set('city', params.city)
+    if (params?.country) q.set('country', params.country)
+    if (params?.startFrom) q.set('startFrom', params.startFrom)
+    if (params?.endTo) q.set('endTo', params.endTo)
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return request(`/events${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+  get: (id: number) => request(`/events/${id}`, { method: 'GET' }),
+  create: (body: any) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: number, body: any) => request(`/events/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  remove: (id: number) => request(`/events/${id}`, { method: 'DELETE' }),
 }

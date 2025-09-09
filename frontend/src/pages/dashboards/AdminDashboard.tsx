@@ -675,6 +675,8 @@ function AdminPropertyForm({ property, onSave, onCancel }: { property?: any; onS
   const [country, setCountry] = useState(property?.country || '')
   const [address, setAddress] = useState(property?.address || '')
   const [location, setLocation] = useState(property?.location || '')
+  const [latitude, setLatitude] = useState<number | ''>((property?.latitude as number) ?? '' as any)
+  const [longitude, setLongitude] = useState<number | ''>((property?.longitude as number) ?? '' as any)
   const [price, setPrice] = useState<number | ''>(property?.price || '')
   const [maxGuests, setMaxGuests] = useState<number | ''>(property?.maxGuests || '')
   const [bedrooms, setBedrooms] = useState<number | ''>(property?.bedrooms || '')
@@ -690,8 +692,7 @@ function AdminPropertyForm({ property, onSave, onCancel }: { property?: any; onS
   const [headerRibbonPrice, setHeaderRibbonPrice] = useState<number | ''>((property?.headerRibbonPrice as number) ?? '' as any)
   const [regionId, setRegionId] = useState<number | ''>((property?.regionId as number) ?? '' as any)
   const [destinationId, setDestinationId] = useState<number | ''>((property?.destinationId as number) ?? '' as any)
-  const [isFeatured, setIsFeatured] = useState<boolean>(!!property?.isFeatured)
-  const [isPopular, setIsPopular] = useState<boolean>(!!property?.isPopular)
+  // Feature flags are Super Admin only (removed from Admin UI)
 
   const addAmenity = () => {
     if (newAmenity.trim() && !amenities.includes(newAmenity.trim())) {
@@ -722,6 +723,8 @@ function AdminPropertyForm({ property, onSave, onCancel }: { property?: any; onS
         city,
         country,
         address,
+        ...(latitude !== '' ? { latitude: Number(latitude) } : {}),
+        ...(longitude !== '' ? { longitude: Number(longitude) } : {}),
         price: Number(price),
         pricePerNight: true,
         amenities,
@@ -739,9 +742,6 @@ function AdminPropertyForm({ property, onSave, onCancel }: { property?: any; onS
           : (Number(headerRibbonPrice) < 0 ? undefined : Number(headerRibbonPrice)),
         ...(regionId !== '' ? { regionId: Number(regionId) } : {}),
         ...(destinationId !== '' ? { destinationId: Number(destinationId) } : {}),
-        // Flags (only honored if backend allows)
-        isFeatured,
-        isPopular,
       }
 
       if (property) {
@@ -819,6 +819,28 @@ function AdminPropertyForm({ property, onSave, onCancel }: { property?: any; onS
             placeholder="Full address" 
             value={address} 
             onChange={e => setAddress(e.target.value)} 
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Latitude</label>
+          <input
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+            placeholder="e.g., 37.7749"
+            type="number"
+            step="any"
+            value={latitude as any}
+            onChange={e => setLatitude(e.target.value === '' ? '' : Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Longitude</label>
+          <input
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+            placeholder="e.g., -122.4194"
+            type="number"
+            step="any"
+            value={longitude as any}
+            onChange={e => setLongitude(e.target.value === '' ? '' : Number(e.target.value))}
           />
         </div>
         <div className="space-y-2">

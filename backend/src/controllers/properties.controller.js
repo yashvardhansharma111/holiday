@@ -386,6 +386,8 @@ export const createByAgentOrOwner = async (req, res) => {
       status: 'PENDING',
       ownerId: role === 'OWNER' ? req.user.id : null,
       agentId: role === 'AGENT' ? req.user.id : null,
+      latitude: data.latitude != null ? Number(data.latitude) : undefined,
+      longitude: data.longitude != null ? Number(data.longitude) : undefined,
       amenities: normalizedAmenities,
       media: data.media || [],
       initialRating: data.initialRating ?? null,
@@ -393,6 +395,9 @@ export const createByAgentOrOwner = async (req, res) => {
       headerRibbonPrice: data.headerRibbonPrice ?? null,
       nearbyAttractions: data.nearbyAttractions ?? null,
       videos: data.videos ?? [],
+      // Enforce feature flags cannot be set by Agent/Owner
+      isFeatured: false,
+      isPopular: false,
       // optional mapping
       ...(data.regionId ? { regionId: Number(data.regionId) } : {}),
       ...(data.destinationId ? { destinationId: Number(data.destinationId) } : {}),

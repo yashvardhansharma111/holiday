@@ -27,6 +27,7 @@ model User {
   properties     Property[]     @relation("OwnerProperties")
   reviews        Review[]
   subscriptions  Subscription[] @relation("OwnerSubscriptions")
+  eventsCreated  Event[]
 
   @@map("users")
 }
@@ -196,6 +197,35 @@ model Review {
   user          User     @relation(fields: [userId], references: [id])
 
   @@map("reviews")
+}
+
+// Platform Events (managed by SUPER_ADMIN)
+model Event {
+  id             Int       @id @default(autoincrement())
+  title          String
+  description    String?
+  category       String?
+  // Location
+  latitude       Float?
+  longitude      Float?
+  address        String?
+  city           String?
+  state          String?
+  country        String?
+  // Time
+  startDateTime  DateTime
+  endDateTime    DateTime
+  timezone       String?
+  // Media & tags
+  images         String[]
+  tags           String[]
+
+  createdBy      Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdByUser  User      @relation(fields: [createdBy], references: [id])
+
+  @@map("events")
 }
 
 model PropertyRate {

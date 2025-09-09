@@ -412,6 +412,7 @@ export const deleteUser = async (req, res) => {
   }
 };
 
+
 // Get platform analytics
 export const getPlatformAnalytics = async (req, res) => {
   try {
@@ -977,6 +978,8 @@ export const createProperty = async (req, res) => {
         city: cityName,
         country: countryName,
         address: address?.trim() || '',
+        latitude: req.body.latitude != null ? Number(req.body.latitude) : undefined,
+        longitude: req.body.longitude != null ? Number(req.body.longitude) : undefined,
         price: Number(price),
         pricePerNight: Boolean(pricePerNight),
         amenities: amenities || [],
@@ -991,6 +994,9 @@ export const createProperty = async (req, res) => {
         cityId: cityRecord.id,
         // media stored as JSON array per schema
         media: Array.isArray(media) ? media : [],
+        // Feature flags: only SUPER_ADMIN may set; otherwise false
+        isFeatured: req.user.role === 'SUPER_ADMIN' ? Boolean(req.body.isFeatured) : false,
+        isPopular: req.user.role === 'SUPER_ADMIN' ? Boolean(req.body.isPopular) : false,
         // optional region/destination mapping
         ...(req.body.regionId ? { regionId: Number(req.body.regionId) } : {}),
         ...(req.body.destinationId ? { destinationId: Number(req.body.destinationId) } : {})
@@ -1051,30 +1057,42 @@ export const updateProperty = async (req, res) => {
     }
 
     // Update property
+    // Build update data with enforcement for flags and optional coords
+    const updateData = {
+      title: title?.trim(),
+      description: description?.trim(),
+      location: location?.trim(),
+      city: city?.trim(),
+      country: country?.trim(),
+      address: address?.trim(),
+      price: price ? Number(price) : undefined,
+      pricePerNight: pricePerNight !== undefined ? Boolean(pricePerNight) : undefined,
+      amenities: amenities,
+      maxGuests: maxGuests ? Number(maxGuests) : undefined,
+      bedrooms: bedrooms ? Number(bedrooms) : undefined,
+      bathrooms: bathrooms ? Number(bathrooms) : undefined,
+      propertyType: propertyType,
+      instantBooking: instantBooking !== undefined ? Boolean(instantBooking) : undefined,
+      updatedAt: new Date(),
+      // Replace media JSON if provided
+      ...(Array.isArray(media) ? { media } : {}),
+      // optional region/destination mapping updates
+      ...(req.body.regionId !== undefined ? { regionId: req.body.regionId == null ? null : Number(req.body.regionId) } : {}),
+      ...(req.body.destinationId !== undefined ? { destinationId: req.body.destinationId == null ? null : Number(req.body.destinationId) } : {}),
+      // optional latitude/longitude
+      ...(Object.prototype.hasOwnProperty.call(req.body, 'latitude') ? { latitude: req.body.latitude == null || req.body.latitude === '' ? null : Number(req.body.latitude) } : {}),
+      ...(Object.prototype.hasOwnProperty.call(req.body, 'longitude') ? { longitude: req.body.longitude == null || req.body.longitude === '' ? null : Number(req.body.longitude) } : {}),
+    };
+
+    // Only SUPER_ADMIN can set feature flags
+    if (req.user.role === 'SUPER_ADMIN') {
+      if (Object.prototype.hasOwnProperty.call(req.body, 'isFeatured')) updateData.isFeatured = Boolean(req.body.isFeatured);
+      if (Object.prototype.hasOwnProperty.call(req.body, 'isPopular')) updateData.isPopular = Boolean(req.body.isPopular);
+    }
+
     const updatedProperty = await prisma.property.update({
       where: { id: Number(id) },
-      data: {
-        title: title?.trim(),
-        description: description?.trim(),
-        location: location?.trim(),
-        city: city?.trim(),
-        country: country?.trim(),
-        address: address?.trim(),
-        price: price ? Number(price) : undefined,
-        pricePerNight: pricePerNight !== undefined ? Boolean(pricePerNight) : undefined,
-        amenities: amenities,
-        maxGuests: maxGuests ? Number(maxGuests) : undefined,
-        bedrooms: bedrooms ? Number(bedrooms) : undefined,
-        bathrooms: bathrooms ? Number(bathrooms) : undefined,
-        propertyType: propertyType,
-        instantBooking: instantBooking !== undefined ? Boolean(instantBooking) : undefined,
-        updatedAt: new Date(),
-        // Replace media JSON if provided
-        ...(Array.isArray(media) ? { media } : {}),
-        // optional region/destination mapping updates
-        ...(req.body.regionId !== undefined ? { regionId: req.body.regionId == null ? null : Number(req.body.regionId) } : {}),
-        ...(req.body.destinationId !== undefined ? { destinationId: req.body.destinationId == null ? null : Number(req.body.destinationId) } : {})
-      },
+      data: updateData,
       include: {
         owner: {
           select: {
