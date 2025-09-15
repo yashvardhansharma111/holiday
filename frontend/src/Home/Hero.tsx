@@ -8,6 +8,9 @@ export default function Hero() {
     "/property1.jpg",
     "/property2.jpg",
     "/property3.jpg",
+    "/property5.jpg",
+    "/property4.jpg",
+
   ], [])
   const [index, setIndex] = useState(0)
   const [isLoaded, setIsLoaded] = useState(false)
