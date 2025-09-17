@@ -9,6 +9,7 @@ import UserDashboard from './pages/dashboards/UserDashboard'
 import SuperAdminDashboard from './pages/dashboards/SuperAdminDashboard'
 import HiddenAdminLogin from './pages/HiddenAdminLogin'
 import HiddenSuperAdminLogin from './pages/HiddenSuperAdminLogin'
+import ForgotPasswordPage from './pages/Forgot'
 import { useAuth } from './context/auth'
 import PropertyDetails from './pages/PropertyDetails'
 import DestinationProperties from './pages/DestinationProperties'
@@ -55,6 +56,7 @@ export default function Router() {
     if (path === '/' || path === '/home') return <HomePage />
     if (path === '/login') return <LoginPage />
     if (path === '/signup') return <SignupPage />
+    if (path === '/forgot') return <ForgotPasswordPage />
     if (path === '/auth/admin') return <HiddenAdminLogin />
     if (path === '/auth/super-admin') return <HiddenSuperAdminLogin />
 

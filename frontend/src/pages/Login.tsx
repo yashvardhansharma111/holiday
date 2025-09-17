@@ -8,10 +8,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccess(null)
     setLoading(true)
     try {
       const res: any = await AuthAPI.login({ email, password })
@@ -19,6 +21,7 @@ export default function LoginPage() {
       const user = res?.user || res?.data?.user
       if (!token || !user) throw new Error('Invalid login response')
       loginWithToken(user, token)
+      setSuccess('Signed in successfully')
     } catch (err: any) {
       setError(err?.message || 'Login failed')
     } finally {
@@ -51,7 +54,7 @@ export default function LoginPage() {
           </div>
 
           {/* Login Form */}
-          <div className="space-y-6" onSubmit={onSubmit}>
+          <form className="space-y-6" onSubmit={onSubmit}>
             <div className="space-y-4">
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 transform -translate-y-1/2 transition-all duration-300">
@@ -68,11 +71,10 @@ export default function LoginPage() {
                   required
                 />
               </div>
-
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 transform -translate-y-1/2 transition-all duration-300">
                   <svg className="w-5 h-5 text-gray-400 group-focus-within:text-purple-500 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm0 2c-2.67 0-8 1.337-8 4v1a1 1 0 001 1h14a1 1 0 001-1v-1c0-2.663-5.33-4-8-4z" />
                   </svg>
                 </div>
                 <input
@@ -98,7 +100,7 @@ export default function LoginPage() {
             )}
 
             <button 
-              onClick={onSubmit}
+              type="submit"
               disabled={loading} 
               className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl hover:shadow-purple-500/25 transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-60 disabled:transform-none disabled:hover:shadow-lg relative overflow-hidden group"
             >
@@ -119,7 +121,15 @@ export default function LoginPage() {
                 )}
               </span>
             </button>
-          </div>
+            {success && (
+              <div className="mt-3 bg-green-50/80 backdrop-blur-sm border border-green-200 rounded-xl p-3 text-green-700 text-sm animate-slideDown">
+                {success}
+              </div>
+            )}
+            <div className="flex justify-end mt-2">
+              <a className="text-sm text-purple-700 hover:underline" href="#/forgot">Forgot password?</a>
+            </div>
+          </form>
 
           {/* Footer */}
           <div className="mt-8 text-center">

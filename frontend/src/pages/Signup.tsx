@@ -10,6 +10,8 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string; password?: string; role?: string }>({})
+  const [otpSent, setOtpSent] = useState(false)
+  const [otp, setOtp] = useState('')
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,14 +24,20 @@ export default function SignupPage() {
     if (!name || name.trim().length < 2) nextFieldErrors.name = 'Name must be at least 2 characters'
     const emailRe = /.+@.+\..+/
     if (!emailRe.test(email)) nextFieldErrors.email = 'Invalid email format'
-    if (!password || password.length < 8) nextFieldErrors.password = 'Password must be at least 8 characters'
+    if (password && password.length > 0 && password.length < 8) nextFieldErrors.password = 'Password must be at least 8 characters'
     if (Object.keys(nextFieldErrors).length) { setFieldErrors(nextFieldErrors); return }
 
     setLoading(true)
     try {
-      await AuthAPI.signup({ name, email, password, role })
-      setSuccess('Account created. Please login.')
-      setTimeout(() => (location.hash = '#/login'), 900)
+      if (!otpSent) {
+        await AuthAPI.sendOtp(email, 'SIGNUP')
+        setOtpSent(true)
+        setSuccess('OTP sent to your email. Please enter the code to verify.')
+      } else {
+        await AuthAPI.verifySignupOtp({ email, code: otp, name, role, password })
+        setSuccess('Signup verified. You can now login.')
+        setTimeout(() => (location.hash = '#/login'), 900)
+      }
     } catch (err: any) {
       // Show global message
       setError(err?.message || 'Signup failed')
@@ -107,12 +115,13 @@ export default function SignupPage() {
                   placeholder="Email address" 
                   type="email" 
                   value={email} 
-                  onChange={e=>setEmail(e.target.value)} 
+                  onChange={e=>{ setEmail(e.target.value); setOtpSent(false); setOtp(''); }} 
                   required 
                 />
                 {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
               </div>
 
+              {!otpSent && (
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 transform -translate-y-1/2 transition-all duration-300">
                   <svg className="w-5 h-5 text-gray-400 group-focus-within:text-purple-500 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,12 +134,30 @@ export default function SignupPage() {
                   type="password" 
                   value={password} 
                   onChange={e=>setPassword(e.target.value)} 
-                  required 
+                  
                 />
                 <div className="mt-1 flex items-center justify-between">
-                  <p className={`text-xs ${fieldErrors.password ? 'text-red-600' : 'text-gray-500'}`}>{fieldErrors.password || 'Min 8 characters'}</p>
+                  <p className={`text-xs ${fieldErrors.password ? 'text-red-600' : 'text-gray-500'}`}>{fieldErrors.password || 'Optional; min 8 characters'}</p>
                 </div>
               </div>
+              )}
+
+              {otpSent && (
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 transform -translate-y-1/2 transition-all duration-300">
+                    <svg className="w-5 h-5 text-gray-400 group-focus-within:text-purple-500 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    className="w-full border-2 rounded-xl px-4 py-4 pl-12 bg-gray-50/50 backdrop-blur-sm transition-all duration-300 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 hover:border-gray-300 focus:outline-none placeholder-gray-400 border-gray-200 focus:border-purple-500"
+                    placeholder="Enter OTP"
+                    value={otp}
+                    onChange={e => setOtp(e.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Check your email for the 6-digit code.</p>
+                </div>
+              )}
 
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 transform -translate-y-1/2 transition-all duration-300">

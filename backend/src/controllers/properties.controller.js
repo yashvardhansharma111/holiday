@@ -38,7 +38,8 @@ export const listPublic = async (req, res) => {
       regionId,
       destinationId,
       regionSlug,
-      destinationSlug
+      destinationSlug,
+      propertyId
     } = req.query;
 
     // Opportunistically refresh stale iCal caches in the background (non-blocking)
@@ -53,6 +54,18 @@ export const listPublic = async (req, res) => {
       Object.assign(where, searchQuery);
     }
     
+    // If propertyId is provided, restrict results to that ID (matches display propertyId or primary id)
+    if (propertyId) {
+      const pid = Number(propertyId);
+      if (Number.isFinite(pid)) {
+        where.OR = [
+          ...(where.OR || []),
+          { id: pid },
+          { propertyId: pid }
+        ];
+      }
+    }
+
     // Location filters
     if (city) where.city = { contains: city, mode: 'insensitive' };
     if (country) where.country = { contains: country, mode: 'insensitive' };
@@ -940,23 +953,17 @@ export const removePropertyMedia = async (req, res) => {
     const toRemove = new Set(media.map((u) => String(u).trim()));
     const remaining = (property.media || []).filter((u) => !toRemove.has(String(u).trim()));
 
-    // Best-effort: delete from S3 if the URL points to our bucket
+    // Best-effort: delete from storage using key derived from URL (DB-backed now)
     try {
-      const bucket = process.env.AWS_S3_BUCKET_NAME;
-      if (bucket) {
-        for (const url of toRemove) {
-          try {
-            const parsed = new URL(url);
-            // Accept both virtual-hosted-style and path-style just by taking pathname as key
-            const key = parsed.pathname.replace(/^\//, '');
-            // Only attempt if hostname includes our bucket (extra safety)
-            if (parsed.hostname.includes(`${bucket}.s3.`) || parsed.hostname.startsWith('s3.')) {
-              await S3Service.deleteFile(key);
-            }
-          } catch (err) {
-            // ignore malformed URL or deletion failure for individual items
-            // console.warn('S3 delete skip:', err?.message || err);
+      for (const url of toRemove) {
+        try {
+          const parsed = new URL(String(url));
+          const key = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+          if (key) {
+            await S3Service.deleteFile(key);
           }
+        } catch (err) {
+          // ignore malformed URL or deletion failure for individual items
         }
       }
     } catch (_) {

@@ -323,3 +323,29 @@ enum SubscriptionStatus {
   CANCELLED
   EXPIRED
 }
+
+// Binary media storage in DB (replacing S3)
+model MediaFile {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@map("media_files")
+}
+
+// One-time upload tokens to emulate presigned uploads
+model UploadToken {
+  token     String   @id
+  key       String
+  mimeType  String
+  // Optional expected size; not enforced at DB level
+  size      Int?
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("upload_tokens")
+}

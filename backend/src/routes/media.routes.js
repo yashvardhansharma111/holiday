@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import S3Service from '../services/s3.service.js';
+import prisma from '../db.js';
 import { successResponse, errorResponse, ERROR_MESSAGES, HTTP_STATUS } from '../utils/responses.js';
 
 const router = express.Router();
@@ -28,6 +29,45 @@ const upload = multer({
     } else {
       cb(new Error('Invalid file type. Only images and videos are allowed.'), false);
     }
+  }
+});
+
+// New: Public upload endpoint to consume DB-backed presigned URLs (tokenized)
+// Method must be PUT and body is raw binary; content-type must match token's mimeType (best effort)
+router.put('/upload/:token', express.raw({ type: '*/*', limit: process.env.MAX_FILE_SIZE || '10mb' }), async (req, res) => {
+  try {
+    const { token } = req.params;
+    const now = new Date();
+    const uploadToken = await prisma.uploadToken.findUnique({ where: { token } });
+    if (!uploadToken || uploadToken.used || uploadToken.expiresAt <= now) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse('Invalid or expired upload URL', HTTP_STATUS.BAD_REQUEST)
+      );
+    }
+
+    const mimeType = req.header('content-type') || uploadToken.mimeType || 'application/octet-stream';
+    const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
+    const size = buffer.length;
+
+    await prisma.mediaFile.create({
+      data: {
+        key: uploadToken.key,
+        mimeType,
+        size,
+        data: buffer,
+      },
+    });
+
+    await prisma.uploadToken.update({ where: { token }, data: { used: true } });
+
+    return res.status(HTTP_STATUS.CREATED).json(
+      successResponse({ key: uploadToken.key, url: `${req.protocol}://${req.get('host')}/api/media/f/${encodeURIComponent(uploadToken.key)}` }, 'File uploaded')
+    );
+  } catch (error) {
+    console.error('Token upload error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to upload file', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
   }
 });
 

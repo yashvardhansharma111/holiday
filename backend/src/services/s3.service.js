@@ -1,111 +1,78 @@
 import 'dotenv/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
+import prisma from '../db.js';
 
-const REGION = process.env.AWS_REGION;
-const ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID;
-const SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY;
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME;
-const S3_PUBLIC_READ = process.env.S3_PUBLIC_READ;
-
-function ensureAwsEnv() {
-  const missing = [];
-  if (!REGION) missing.push('AWS_REGION');
-  if (!ACCESS_KEY) missing.push('AWS_ACCESS_KEY_ID');
-  if (!SECRET_KEY) missing.push('AWS_SECRET_ACCESS_KEY');
-  if (!BUCKET_NAME) missing.push('AWS_S3_BUCKET_NAME (or AWS_BUCKET_NAME)');
-  if (missing.length) {
-    throw new Error(`Missing AWS configuration: ${missing.join(', ')}`);
-  }
+function getPublicApiBaseUrl() {
+  const envUrl = process.env.BACKEND_PUBLIC_URL || process.env.API_PUBLIC_URL;
+  if (envUrl) return envUrl.replace(/\/$/, '');
+  const port = process.env.PORT || '8000';
+  return `http://localhost:${port}`;
 }
 
-// Validate env eagerly so errors are clear
-ensureAwsEnv();
-
-const s3Client = new S3Client({
-  region: REGION,
-  credentials: {
-    accessKeyId: ACCESS_KEY,
-    secretAccessKey: SECRET_KEY,
-  },
-});
+function buildFileUrl(key) {
+  const base = getPublicApiBaseUrl();
+  return `${base}/api/media/f/${encodeURIComponent(key)}`;
+}
 
 export class S3Service {
-  // Generate presigned URL for direct upload
+  // Generate presigned URL for direct upload (DB-backed)
   static async generatePresignedUrl(fileType, fileName, folder = 'properties') {
     const key = `${folder}/${uuidv4()}-${fileName}`;
-    
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      ContentType: fileType,
+    const token = uuidv4().replace(/-/g, '');
+    const ttlSec = 900; // 15 minutes
+    const expiresAt = new Date(Date.now() + ttlSec * 1000);
+
+    await prisma.uploadToken.create({
+      data: {
+        token,
+        key,
+        mimeType: String(fileType),
+        size: null,
+        expiresAt,
+      },
     });
 
-    try {
-      const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
-      return {
-        presignedUrl,
-        key,
-        url: `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`
-      };
-    } catch (error) {
-      throw new Error(`Failed to generate presigned URL: ${error.message}`);
-    }
+    const presignedUrl = `${getPublicApiBaseUrl()}/api/media/upload/${token}`;
+    return {
+      presignedUrl,
+      key,
+      url: buildFileUrl(key),
+    };
   }
 
-  // Delete file from S3
+  // Delete file from DB
   static async deleteFile(key) {
-    const command = new DeleteObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-    });
-
     try {
-      await s3Client.send(command);
+      await prisma.mediaFile.delete({ where: { key } });
       return true;
     } catch (error) {
-      throw new Error(`Failed to delete file: ${error.message}`);
+      // If not found, treat as success for idempotency
+      return true;
     }
   }
 
-  // Generate presigned URL for viewing/downloading
-  static async generateViewUrl(key, expiresIn = 3600) {
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-    });
-
-    try {
-      const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn });
-      return presignedUrl;
-    } catch (error) {
-      throw new Error(`Failed to generate view URL: ${error.message}`);
-    }
+  // Generate view URL (DB-backed): return our public URL
+  static async generateViewUrl(key, _expiresIn = 3600) {
+    return buildFileUrl(key);
   }
 
-  // Upload file directly (for smaller files)
+  // Upload file directly (multer) into DB
   static async uploadFile(file, folder = 'properties') {
     const key = `${folder}/${uuidv4()}-${file.originalname}`;
-    
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-    });
-
-    try {
-      await s3Client.send(command);
-      return {
+    await prisma.mediaFile.create({
+      data: {
         key,
-        url: `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`,
+        mimeType: file.mimetype,
         size: file.size,
-        type: file.mimetype
-      };
-    } catch (error) {
-      throw new Error(`Failed to upload file: ${error.message}`);
-    }
+        data: file.buffer,
+      },
+    });
+    return {
+      key,
+      url: buildFileUrl(key),
+      size: file.size,
+      type: file.mimetype,
+    };
   }
 
   // Validate file type and size
@@ -117,7 +84,7 @@ export class S3Service {
       'image/gif',
       'video/mp4',
       'video/webm',
-      'video/ogg'
+      'video/ogg',
     ];
 
     if (!allowedTypes.includes(file.mimetype)) {
@@ -132,4 +99,5 @@ export class S3Service {
   }
 }
 
-export default S3Service; 
+export default S3Service;
+ 

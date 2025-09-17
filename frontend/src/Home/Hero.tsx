@@ -116,7 +116,7 @@ export default function Hero() {
             <div className={`relative z-30 max-w-5xl transition-all duration-1000 delay-300 ${
               isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
             }`}>
-              <div className="backdrop-blur-sm bg-white/10 rounded-2xl p-2 shadow-2xl border border-white/20">
+              <div className="rounded-2xl">
                 <SearchForm />
               </div>
             </div>

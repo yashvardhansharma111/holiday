@@ -69,6 +69,7 @@ export default function SearchForm() {
   const [children, setChildren] = useState(0)
   const [pets, setPets] = useState(false)
   const [showGuestDropdown, setShowGuestDropdown] = useState(false)
+  const [propertyId, setPropertyId] = useState<string>("")
 
   function slugify(str: string) {
     return String(str || '')
@@ -81,14 +82,14 @@ export default function SearchForm() {
 
   function onSearch() {
     const trimmed = location.trim()
-    if (!trimmed) return
-    // If numeric, treat as propertyId
-    if (/^\d+$/.test(trimmed)) {
-      const url = `/properties/${trimmed}`
-      window.history.pushState({}, '', url)
-      window.dispatchEvent(new PopStateEvent('popstate'))
+    // If a Property ID is provided explicitly, use it
+    const pid = propertyId.trim() || (/^\d+$/.test(trimmed) ? trimmed : '')
+    if (pid) {
+      const url = `#/properties/${pid}`
+      window.location.hash = url
       return
     }
+    if (!trimmed) return
     // Otherwise treat as city. Allow formats like "City, Country" – use first token before comma
     const cityOnly = trimmed.split(',')[0]
     const citySlug = slugify(cityOnly)
@@ -96,9 +97,8 @@ export default function SearchForm() {
     if (checkIn) q.set('checkIn', new Date(checkIn).toISOString())
     if (checkOut) q.set('checkOut', new Date(checkOut).toISOString())
     const qs = q.toString()
-    const dest = `/cities/${citySlug}${qs ? `?${qs}` : ''}`
-    window.history.pushState({}, '', dest)
-    window.dispatchEvent(new PopStateEvent('popstate'))
+    const dest = `#/cities/${citySlug}${qs ? `?${qs}` : ''}`
+    window.location.hash = dest
   }
 
   const handleLocationSelect = (destination: string) => {
@@ -120,12 +120,32 @@ export default function SearchForm() {
   }
 
   return (
-    <div className=" rounded-full p-4 md:p-5 shadow-2xl flex flex-row items-center gap-0 w-full max-w-7xl mx-auto relative z-20 backdrop-blur-sm bg-white/95 min-h-[96px] md:min-h-[104px] md:scale-[1.05]">
+    <div className=" rounded-full p-4 md:p-5 shadow-xl flex flex-row items-center gap-0 w-full max-w-7xl mx-auto relative z-[9990] backdrop-blur-sm bg-white/95 min-h-[96px] md:min-h-[104px] mb-10 md:mb-16">
+      {/* Property ID Search (left) */}
+      <div className="basis-1/4 min-w-[180px] flex items-center gap-4 px-6 md:px-8 py-6 rounded-l-full">
+        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 8h12M6 12h12M6 16h6" />
+        </svg>
+        <div className="flex flex-col items-start w-full">
+          <span className="text-sm font-semibold text-gray-900">Property ID</span>
+          <input
+            placeholder="e.g., 1001"
+            value={propertyId}
+            onChange={(e)=> setPropertyId(e.target.value.replace(/[^0-9]/g, ''))}
+            onKeyDown={(e)=> { if (e.key === 'Enter' && propertyId.trim()) { window.location.hash = `#/properties/${propertyId.trim()}`; } }}
+            inputMode="numeric"
+            className="border-0 bg-transparent text-gray-600 placeholder:text-gray-400 focus:outline-none p-0 text-base w-full min-w-[120px]"
+          />
+        </div>
+      </div>
+
+      <div className="w-px bg-gray-200 h-14 md:h-16"></div>
+
       {/* Location Search */}
       <Popover open={showLocationDropdown} onOpenChange={setShowLocationDropdown}>
         <PopoverTrigger>
           <div
-            className="basis-1/3 min-w-[260px] flex items-center gap-4 px-10 py-6 cursor-pointer hover:bg-gray-50 rounded-l-full transition-colors"
+            className="basis-1/3 min-w-[260px] flex items-center gap-4 px-10 py-6 cursor-pointer hover:bg-gray-50 transition-colors"
             onClick={() => setShowLocationDropdown(!showLocationDropdown)}
           >
             <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -163,19 +183,35 @@ export default function SearchForm() {
           </div>
         </PopoverTrigger>
         {showLocationDropdown && (
-          <PopoverContent className="w-80 p-0">
-            <div className="p-4">
-              <h4 className="font-semibold text-sm text-gray-900 mb-3">Popular destinations</h4>
-              <div className="space-y-2">
-                {popularDestinations.map((destination) => (
-                  <div
-                    key={destination}
-                    className="p-2 hover:bg-gray-100 rounded-lg cursor-pointer text-sm"
-                    onClick={() => handleLocationSelect(destination)}
-                  >
-                    {destination}
-                  </div>
-                ))}
+          <PopoverContent className="w-80 p-0 z-[9995] rounded-2xl shadow-2xl border border-gray-200 bg-white">
+            <div className="p-4 space-y-4">
+              <div>
+                <h4 className="font-semibold text-sm text-gray-900 mb-3">Popular destinations</h4>
+                <div className="space-y-2">
+                  {popularDestinations.map((destination) => (
+                    <div
+                      key={destination}
+                      className="p-2 hover:bg-gray-100 rounded-lg cursor-pointer text-sm"
+                      onClick={() => handleLocationSelect(destination)}
+                    >
+                      {destination}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t pt-3">
+                <label className="block text-xs font-semibold text-gray-700 mb-2">Search by Property ID</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={propertyId}
+                    onChange={(e)=> setPropertyId(e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    placeholder="e.g., 1001"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <Button className="bg-purple-600 text-white text-sm px-3 py-2" onClick={() => { if (propertyId.trim()) { window.location.hash = `#/properties/${propertyId.trim()}`; setShowLocationDropdown(false); } }}>Go</Button>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-500">Enter the property ID to jump directly.</p>
               </div>
             </div>
           </PopoverContent>

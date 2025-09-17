@@ -36,6 +36,17 @@ export const AuthAPI = {
   login: (body: { email: string; password: string }) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   me: () => request('/auth/me', { method: 'GET' }),
+  // OTP-based
+  sendOtp: (email: string, purpose: 'SIGNUP' | 'LOGIN' | 'FORGOT') =>
+    request('/auth/otp/send', { method: 'POST', body: JSON.stringify({ email, purpose }) }),
+  verifySignupOtp: (body: { email: string; code: string; name: string; role: 'USER' | 'OWNER'; password?: string; phone?: string; avatar?: string }) =>
+    request('/auth/otp/signup/verify', { method: 'POST', body: JSON.stringify(body) }),
+  verifyLoginOtp: (body: { email: string; code: string }) =>
+    request('/auth/otp/login/verify', { method: 'POST', body: JSON.stringify(body) }),
+  forgotSendOtp: (email: string) =>
+    request('/auth/forgot/send', { method: 'POST', body: JSON.stringify({ email }) }),
+  forgotVerifyOtp: (body: { email: string; code: string; newPassword: string }) =>
+    request('/auth/forgot/verify', { method: 'POST', body: JSON.stringify(body) }),
 }
 
 export const AdminAPI = {

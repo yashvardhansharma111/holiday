@@ -250,6 +250,31 @@ CREATE TABLE "public"."destinations" (
     CONSTRAINT "destinations_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "public"."media_files" (
+    "id" SERIAL NOT NULL,
+    "key" TEXT NOT NULL,
+    "mimeType" TEXT NOT NULL,
+    "size" INTEGER NOT NULL,
+    "data" BYTEA NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "media_files_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."upload_tokens" (
+    "token" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "mimeType" TEXT NOT NULL,
+    "size" INTEGER,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "used" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "upload_tokens_pkey" PRIMARY KEY ("token")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "public"."users"("email");
 
@@ -276,6 +301,9 @@ CREATE UNIQUE INDEX "regions_slug_key" ON "public"."regions"("slug");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "destinations_slug_key" ON "public"."destinations"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "media_files_key_key" ON "public"."media_files"("key");
 
 -- AddForeignKey
 ALTER TABLE "public"."subscriptions" ADD CONSTRAINT "subscriptions_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

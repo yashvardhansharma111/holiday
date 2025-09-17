@@ -8,8 +8,14 @@ import {
   loginSchema, 
   updateProfileSchema, 
   changePasswordSchema,
-  refreshTokenSchema 
+  refreshTokenSchema,
+  sendOtpSchema,
+  verifySignupOtpSchema,
+  verifyLoginOtpSchema,
+  verifyForgotOtpSchema 
 } from '../schemas/index.js';
+import { sendOtpEmail } from '../services/email.service.js';
+import { generateOtp, setOtp, hasOtp, verifyAndConsumeOtp } from '../services/otp.service.js';
 
 export const signup = async (req, res) => {
   try {
@@ -328,6 +334,238 @@ export const logout = async (req, res) => {
     console.error('Logout error:', error);
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
       errorResponse('Logout failed', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+// =============== OTP-based flows ===============
+export const sendOtp = async (req, res) => {
+  try {
+    const { email, purpose } = sendOtpSchema.parse(req.body);
+    const lowerEmail = email.toLowerCase();
+
+    // Pre-conditions based on purpose
+    if (purpose === 'SIGNUP') {
+      const exists = await prisma.user.findUnique({ where: { email: lowerEmail } });
+      if (exists) {
+        return res.status(HTTP_STATUS.CONFLICT).json(
+          errorResponse('Email already registered. Please login.', HTTP_STATUS.CONFLICT)
+        );
+      }
+    } else if (purpose === 'LOGIN' || purpose === 'FORGOT') {
+      const user = await prisma.user.findUnique({ where: { email: lowerEmail } });
+      if (!user) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json(
+          errorResponse('No account found with this email', HTTP_STATUS.NOT_FOUND)
+        );
+      }
+      if (!user.isActive) {
+        return res.status(HTTP_STATUS.FORBIDDEN).json(
+          errorResponse('Account is deactivated', HTTP_STATUS.FORBIDDEN)
+        );
+      }
+    }
+
+    const code = generateOtp();
+    setOtp(lowerEmail, purpose, code);
+    await sendOtpEmail(lowerEmail, code, purpose === 'FORGOT' ? 'Password Reset' : purpose === 'SIGNUP' ? 'Signup Verification' : 'Login Verification');
+
+    return res.json(successResponse({ sent: true }, 'OTP sent successfully'));
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse(ERROR_MESSAGES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST, error.errors)
+      );
+    }
+    console.error('Send OTP error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to send OTP', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+export const verifySignupOtp = async (req, res) => {
+  try {
+    const data = verifySignupOtpSchema.parse(req.body);
+    const lowerEmail = data.email.toLowerCase();
+    const v = verifyAndConsumeOtp(lowerEmail, 'SIGNUP', data.code);
+    if (!v.ok) {
+      const map = {
+        expired: HTTP_STATUS.GONE,
+        invalid: HTTP_STATUS.BAD_REQUEST,
+        too_many_attempts: HTTP_STATUS.TOO_MANY_REQUESTS,
+      };
+      const status = map[v.reason] || HTTP_STATUS.BAD_REQUEST;
+      return res.status(status).json(errorResponse('Invalid or expired code', status));
+    }
+
+    const exists = await prisma.user.findUnique({ where: { email: lowerEmail } });
+    if (exists) {
+      return res.status(HTTP_STATUS.CONFLICT).json(
+        errorResponse('Email already registered. Please login.', HTTP_STATUS.CONFLICT)
+      );
+    }
+
+    const allowedRoles = ['OWNER', 'USER'];
+    let passwordHash = null;
+    if (data.password) {
+      const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS) || 12;
+      passwordHash = await bcrypt.hash(data.password, saltRounds);
+    }
+
+    const userRaw = await prisma.user.create({
+      data: {
+        name: data.name,
+        email: lowerEmail,
+        passwordHash: passwordHash,
+        role: allowedRoles.includes(data.role) ? data.role : 'USER',
+        phone: data.phone,
+        avatar: data.avatar,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        phone: true,
+        avatar: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+    const user = userRaw.role === 'OWNER' ? userRaw : userRaw;
+
+    return res.status(HTTP_STATUS.CREATED).json(
+      successResponse(user, 'Signup verified and account created', HTTP_STATUS.CREATED)
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse(ERROR_MESSAGES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST, error.errors)
+      );
+    }
+    console.error('Verify signup OTP error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to verify OTP', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+export const verifyLoginOtp = async (req, res) => {
+  try {
+    const data = verifyLoginOtpSchema.parse(req.body);
+    const lowerEmail = data.email.toLowerCase();
+    const v = verifyAndConsumeOtp(lowerEmail, 'LOGIN', data.code);
+    if (!v.ok) {
+      const map = {
+        expired: HTTP_STATUS.GONE,
+        invalid: HTTP_STATUS.BAD_REQUEST,
+        too_many_attempts: HTTP_STATUS.TOO_MANY_REQUESTS,
+      };
+      const status = map[v.reason] || HTTP_STATUS.BAD_REQUEST;
+      return res.status(status).json(errorResponse('Invalid or expired code', status));
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: lowerEmail } });
+    if (!user) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json(
+        errorResponse('No account found with this email', HTTP_STATUS.NOT_FOUND)
+      );
+    }
+    if (!user.isActive) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json(
+        errorResponse('Account is deactivated', HTTP_STATUS.FORBIDDEN)
+      );
+    }
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role, email: user.email, isActive: user.isActive },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+
+    const responseUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      avatar: user.avatar,
+      ...(user.role === 'OWNER' ? { ownerPaid: user.ownerPaid } : {}),
+    };
+
+    return res.json(successResponse({ token, user: responseUser }, 'Login successful'));
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse(ERROR_MESSAGES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST, error.errors)
+      );
+    }
+    console.error('Verify login OTP error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to verify login OTP', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+export const forgotSendOtp = async (req, res) => {
+  // proxy to sendOtp with purpose FORGOT
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const payload = { email, purpose: 'FORGOT' };
+    req.body = payload;
+    return await sendOtp(req, res);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse(ERROR_MESSAGES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST, error.errors)
+      );
+    }
+    console.error('Forgot send OTP error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to send OTP', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    );
+  }
+};
+
+export const forgotVerifyOtp = async (req, res) => {
+  try {
+    const data = verifyForgotOtpSchema.parse(req.body);
+    const lowerEmail = data.email.toLowerCase();
+    const v = verifyAndConsumeOtp(lowerEmail, 'FORGOT', data.code);
+    if (!v.ok) {
+      const map = {
+        expired: HTTP_STATUS.GONE,
+        invalid: HTTP_STATUS.BAD_REQUEST,
+        too_many_attempts: HTTP_STATUS.TOO_MANY_REQUESTS,
+      };
+      const status = map[v.reason] || HTTP_STATUS.BAD_REQUEST;
+      return res.status(status).json(errorResponse('Invalid or expired code', status));
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: lowerEmail } });
+    if (!user) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json(
+        errorResponse('No account found with this email', HTTP_STATUS.NOT_FOUND)
+      );
+    }
+
+    const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS) || 12;
+    const newPasswordHash = await bcrypt.hash(data.newPassword, saltRounds);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newPasswordHash, updatedAt: new Date() } });
+
+    return res.json(successResponse(null, 'Password reset successful'));
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        errorResponse(ERROR_MESSAGES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST, error.errors)
+      );
+    }
+    console.error('Forgot verify OTP error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      errorResponse('Failed to reset password', HTTP_STATUS.INTERNAL_SERVER_ERROR)
     );
   }
 };
